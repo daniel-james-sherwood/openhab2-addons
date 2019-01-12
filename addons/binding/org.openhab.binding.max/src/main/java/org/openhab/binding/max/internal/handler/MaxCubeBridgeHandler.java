@@ -438,6 +438,18 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
                 } else if (commandContent.contentEquals(ThermostatModeType.MANUAL.toString())) {
                     logger.debug("updates to MANUAL mode with temperature '{}'", setTemp);
                     return new SCommand(device.getRFAddress(), device.getRoomId(), ThermostatModeType.MANUAL, setTemp);
+                } else if (commandContent.contentEquals(ThermostatModeType.OFF.toString())) {
+                    setTemp = 4.5;
+                    logger.debug("updates to MANUAL mode with temperature '{}'", setTemp);
+                    return new SCommand(device.getRFAddress(), device.getRoomId(), ThermostatModeType.MANUAL, 4.5);
+                } else if (commandContent.contentEquals(ThermostatModeType.ECO.toString())) {
+                    setTemp = Double.valueOf(device.getProperties().get(PROPERTY_THERMO_ECO_TEMP).toString());
+                    logger.debug("updates to temperature '{}'", setTemp);
+                    return new SCommand(device.getRFAddress(), device.getRoomId(), device.getMode(), setTemp);
+                } else if (commandContent.contentEquals(ThermostatModeType.COMFORT.toString())) {
+                    setTemp = Double.valueOf(device.getProperties().get(PROPERTY_THERMO_COMFORT_TEMP).toString());
+                    logger.debug("updates to temperature '{}'", setTemp);
+                    return new SCommand(device.getRFAddress(), device.getRoomId(), device.getMode(), setTemp);
                 } else {
                     logger.debug("Only updates to AUTOMATIC & BOOST & MANUAL supported, received value: '{}'",
                             commandContent);
@@ -642,7 +654,7 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
      * Processes the message
      *
      * @param Message
-     *            the decoded message data
+     *                    the decoded message data
      */
     private void processMessage(Message message) {
         if (message == null) {
@@ -875,7 +887,7 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
      * Returns the MAX! Device decoded during the last refreshData
      *
      * @param serialNumber
-     *            the serial number of the device as String
+     *                         the serial number of the device as String
      * @return device the {@link Device} information decoded in last refreshData
      */
 
@@ -891,9 +903,9 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
      * meaningful. This will improve the behavior when using sliders in the GUI.
      *
      * @param SendCommand
-     *            the SendCommand containing the serial number of the device as
-     *            String the channelUID used to send the command and the the
-     *            command data
+     *                        the SendCommand containing the serial number of the device as
+     *                        String the channelUID used to send the command and the the
+     *                        command data
      */
     public void queueCommand(SendCommand sendCommand) {
         if (commandQueue.offer(sendCommand)) {
