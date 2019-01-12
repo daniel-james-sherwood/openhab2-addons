@@ -437,7 +437,7 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
                 originalMode = device.getMode();
 
                 if (originalMode == ThermostatModeType.MANUAL || originalMode == ThermostatModeType.AUTOMATIC) {
-                    double tempSetTemp = originalSetTemp + 0.5;
+                    double tempSetTemp = originalSetTemp;
                     logger.debug("Actuals Refresh: Setting Temp {}", tempSetTemp);
                     handleCommand(new ChannelUID(getThing().getUID(), CHANNEL_SETTEMP),
                             new QuantityType<>(tempSetTemp, CELSIUS));
