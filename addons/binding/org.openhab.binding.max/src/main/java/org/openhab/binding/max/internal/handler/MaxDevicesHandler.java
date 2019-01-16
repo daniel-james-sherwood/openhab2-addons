@@ -335,12 +335,8 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
         }
         switch (channelUID.getId()) {
             case CHANNEL_SETTEMP:
-                if (refreshingActuals) {
-                    refreshActualsRestore();
-                }
-                maxCubeBridge.queueCommand(new SendCommand(maxDeviceSerial, channelUID, command));
-                break;
             case CHANNEL_MODE:
+            case CHANNEL_EXTENDED_MODE:
                 if (refreshingActuals) {
                     refreshActualsRestore();
                 }
@@ -387,6 +383,8 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
                             new QuantityType<>(((HeatingThermostat) device).getTemperatureSetpoint(), CELSIUS));
                     updateState(new ChannelUID(getThing().getUID(), CHANNEL_MODE),
                             new StringType(((HeatingThermostat) device).getModeString()));
+                    updateState(new ChannelUID(getThing().getUID(), CHANNEL_EXTENDED_MODE),
+                            new StringType(((HeatingThermostat) device).getExtendedModeString()));
                     updateState(new ChannelUID(getThing().getUID(), CHANNEL_BATTERY),
                             ((HeatingThermostat) device).getBatteryLow());
                     updateState(new ChannelUID(getThing().getUID(), CHANNEL_VALVE),

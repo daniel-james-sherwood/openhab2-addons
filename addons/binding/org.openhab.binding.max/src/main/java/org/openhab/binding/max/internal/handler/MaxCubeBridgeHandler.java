@@ -131,7 +131,7 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
 
     private final MessageProcessor messageProcessor = new MessageProcessor();
 
-    private static final int MAX_DUTY_CYCLE = 80;
+    private static final int MAX_DUTY_CYCLE = 99;
     private final ReentrantLock dutyCycleLock = new ReentrantLock();
     private final Condition excessDutyCycle = dutyCycleLock.newCondition();
 
@@ -414,49 +414,87 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
             return null;
         }
 
+        ThermostatModeType mode = device.getMode();
+        double setTemp = device.getTemperatureSetpoint();
         // Temperature setting
         if (channelUID.getId().equals(CHANNEL_SETTEMP)) {
             if (command instanceof QuantityType || command instanceof OnOffType) {
-                double setTemp = DEFAULT_OFF_TEMPERATURE;
                 if (command instanceof QuantityType) {
                     setTemp = ((QuantityType<Temperature>) command).toUnit(CELSIUS).toBigDecimal()
                             .setScale(1, RoundingMode.HALF_UP).doubleValue();
                 } else if (command instanceof OnOffType) {
                     setTemp = OnOffType.ON.equals(command) ? DEFAULT_ON_TEMPERATURE : DEFAULT_OFF_TEMPERATURE;
                 }
-                return new SCommand(device.getRFAddress(), device.getRoomId(), device.getMode(), setTemp);
+                device.setTemperatureSetpoint(setTemp);
+                if (setTemp == DEFAULT_OFF_TEMPERATURE) {
+                    device.setExtendedMode(ThermostatModeType.OFF);
+                } else if (setTemp == DEFAULT_ON_TEMPERATURE) {
+                    device.setExtendedMode(ThermostatModeType.ON);
+                } else {
+                    device.setExtendedMode(mode);
+                }
+                device.ecoComfortSetpoint = -1.0;
             }
             // Mode setting
-        } else if (channelUID.getId().equals(CHANNEL_MODE)) {
+        } else if (channelUID.getId().equals(CHANNEL_MODE) || channelUID.getId().equals(CHANNEL_EXTENDED_MODE)) {
             if (command instanceof StringType) {
                 String commandContent = command.toString().trim().toUpperCase();
-                double setTemp = device.getTemperatureSetpoint();
                 if (commandContent.contentEquals(ThermostatModeType.AUTOMATIC.toString())) {
-                    return new SCommand(device.getRFAddress(), device.getRoomId(), ThermostatModeType.AUTOMATIC, 0D);
+                    mode = ThermostatModeType.AUTOMATIC;
+                    setTemp = 0D;
+                    device.ecoComfortSetpoint = -1.0;
                 } else if (commandContent.contentEquals(ThermostatModeType.BOOST.toString())) {
-                    return new SCommand(device.getRFAddress(), device.getRoomId(), ThermostatModeType.BOOST, setTemp);
+                    mode = ThermostatModeType.BOOST;
+                    device.ecoComfortSetpoint = -1.0;
                 } else if (commandContent.contentEquals(ThermostatModeType.MANUAL.toString())) {
-                    logger.debug("updates to MANUAL mode with temperature '{}'", setTemp);
-                    return new SCommand(device.getRFAddress(), device.getRoomId(), ThermostatModeType.MANUAL, setTemp);
+                    mode = ThermostatModeType.MANUAL;
+                    device.ecoComfortSetpoint = -1.0;
                 } else if (commandContent.contentEquals(ThermostatModeType.OFF.toString())) {
-                    setTemp = 4.5;
-                    logger.debug("updates to MANUAL mode with temperature '{}'", setTemp);
-                    return new SCommand(device.getRFAddress(), device.getRoomId(), ThermostatModeType.MANUAL, 4.5);
+                    setTemp = DEFAULT_OFF_TEMPERATURE;
+                    mode = ThermostatModeType.MANUAL;
+                    device.ecoComfortSetpoint = -1.0;
+                } else if (commandContent.contentEquals(ThermostatModeType.MIN.toString())) {
+                    setTemp = Double.valueOf(device.getProperties().get(PROPERTY_THERMO_MIN_TEMP_SETPOINT).toString());
+                    device.ecoComfortSetpoint = setTemp;
                 } else if (commandContent.contentEquals(ThermostatModeType.ECO.toString())) {
                     setTemp = Double.valueOf(device.getProperties().get(PROPERTY_THERMO_ECO_TEMP).toString());
-                    logger.debug("updates to temperature '{}'", setTemp);
-                    return new SCommand(device.getRFAddress(), device.getRoomId(), device.getMode(), setTemp);
+                    device.ecoComfortSetpoint = setTemp;
                 } else if (commandContent.contentEquals(ThermostatModeType.COMFORT.toString())) {
                     setTemp = Double.valueOf(device.getProperties().get(PROPERTY_THERMO_COMFORT_TEMP).toString());
-                    logger.debug("updates to temperature '{}'", setTemp);
-                    return new SCommand(device.getRFAddress(), device.getRoomId(), device.getMode(), setTemp);
+                    device.ecoComfortSetpoint = setTemp;
+                } else if (commandContent.contentEquals(ThermostatModeType.MAX.toString())) {
+                    setTemp = Double.valueOf(device.getProperties().get(PROPERTY_THERMO_MAX_TEMP_SETPOINT).toString());
+                    device.ecoComfortSetpoint = setTemp;
+                } else if (commandContent.contentEquals(ThermostatModeType.ON.toString())) {
+                    setTemp = DEFAULT_ON_TEMPERATURE;
+                    device.ecoComfortSetpoint = -1.0;
                 } else {
                     logger.debug("Only updates to AUTOMATIC & BOOST & MANUAL supported, received value: '{}'",
                             commandContent);
+                    return null;
+                }
+
+                device.setExtendedMode(ThermostatModeType.valueOf(commandContent));
+                device.setMode(mode);
+                if (setTemp != 0.0) {
+                    device.setTemperatureSetpoint(setTemp);
                 }
             }
         }
-        return null;
+        if (mode == device.getExtendedMode()) {
+            logger.debug("updates to {} mode with temperature {}", mode, setTemp);
+        } else {
+            logger.debug("updates to {}/{} mode with temperature {}", device.getExtendedMode(), mode, setTemp);
+        }
+        for (DeviceStatusListener deviceStatusListener : deviceStatusListeners) {
+            try {
+                deviceStatusListener.onDeviceStateChanged(getThing().getUID(), device);
+            } catch (Exception e) {
+                logger.error("An exception occurred while calling the DeviceStatusListener", e);
+                unregisterDeviceStatusListener(deviceStatusListener);
+            }
+        }
+        return new SCommand(device.getRFAddress(), device.getRoomId(), mode, setTemp);
     }
 
     /**

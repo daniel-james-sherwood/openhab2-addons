@@ -48,6 +48,8 @@ public abstract class Device {
     private boolean linkStatusError;
     private Map<String, Object> properties = new HashMap<>();
 
+    public double ecoComfortSetpoint = 0;
+
     public Device(DeviceConfiguration c) {
         this.serialNumber = c.getSerialNumber();
         this.rfAddress = c.getRFAddress();
@@ -169,6 +171,39 @@ public abstract class Device {
                 heatingThermostat.setValvePosition(raw[6] & 0xFF);
                 heatingThermostat.setTemperatureSetpoint(raw[7] & 0x7F);
 
+                ThermostatModeType extendedMode = heatingThermostat.getExtendedMode();
+                ThermostatModeType mode = heatingThermostat.getMode();
+                double setTemp = heatingThermostat.getTemperatureSetpoint();
+                LOGGER.debug("Device {}: currentMode {}, deviceMode {}, newSetpoint {}", device.name, extendedMode,
+                        mode, setTemp);
+
+                ThermostatModeType setMode = mode;
+                if (mode == ThermostatModeType.MANUAL && setTemp == 4.5) {
+                    // Check for OFF
+                    setMode = ThermostatModeType.OFF;
+                } else if (setTemp == 30.5) {
+                    // Check for ON
+                    setMode = ThermostatModeType.ON;
+                } else if (device.ecoComfortSetpoint != -1.0) {
+                    // Check for unchanged ECO or COMFORT
+                    LOGGER.debug("Device {}: deviceMode {}, ecoComfortSetpoint {}", device.name,
+                            heatingThermostat.getMode(), device.ecoComfortSetpoint);
+                    if (mode == heatingThermostat.getMode() && setTemp == device.ecoComfortSetpoint) {
+                        setMode = extendedMode;
+                        LOGGER.debug("Device {}: newMode {}", device.name, setMode);
+                    } else {
+                        device.ecoComfortSetpoint = -1.0;
+                    }
+                }
+
+                if (mode == setMode) {
+                    LOGGER.debug("updates to {} mode with temperature {}", mode, setTemp / 2.0);
+                } else {
+                    LOGGER.debug("updates to {}/{} mode with temperature {}", setMode, mode, setTemp / 2.0);
+                }
+
+                heatingThermostat.setExtendedMode(setMode);
+
                 // 9 2 858B Date until (05-09-2011) (see Encoding/Decoding
                 // date/time)
                 // B 1 2E Time until (23:00) (see Encoding/Decoding date/time)
@@ -183,12 +218,12 @@ public abstract class Device {
                     actualTemp = (raw[11] & 0xFF) + (raw[7] & 0x80) * 2;
 
                 } else {
-                    if (heatingThermostat.getMode() != ThermostatModeType.VACATION
-                            && heatingThermostat.getMode() != ThermostatModeType.BOOST) {
+                    if (heatingThermostat.getExtendedMode() != ThermostatModeType.VACATION
+                            && heatingThermostat.getExtendedMode() != ThermostatModeType.BOOST) {
                         actualTemp = (raw[8] & 0xFF) * 256 + (raw[9] & 0xFF);
                     } else {
                         LOGGER.debug("Device {} ({}): No temperature reading in {} mode", rfAddress, device.getType(),
-                                heatingThermostat.getMode());
+                                heatingThermostat.getExtendedMode());
                     }
                 }
                 LOGGER.debug("Device {} ({}): Actual Temperature : {}", rfAddress, device.getType(),

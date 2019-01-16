@@ -21,6 +21,7 @@ import java.util.Date;
  */
 public class HeatingThermostat extends Device {
     private ThermostatModeType mode;
+    private ThermostatModeType extendedMode;
 
     /** Valve position in % */
     private int valvePosition;
@@ -72,11 +73,32 @@ public class HeatingThermostat extends Device {
         return this.mode;
     }
 
-    void setMode(ThermostatModeType mode) {
+    public void setMode(ThermostatModeType mode) {
         if (this.mode != mode) {
             setUpdated(true);
         }
         this.mode = mode;
+    }
+
+    /**
+     * Returns the current extended mode of the thermostat.
+     */
+    public String getExtendedModeString() {
+        return this.extendedMode.toString();
+    }
+
+    /**
+     * Returns the current extended mode of the thermostat.
+     */
+    public ThermostatModeType getExtendedMode() {
+        return this.extendedMode;
+    }
+
+    public void setExtendedMode(ThermostatModeType mode) {
+        if (this.extendedMode != mode) {
+            setUpdated(true);
+        }
+        this.extendedMode = mode;
     }
 
     /**
@@ -143,6 +165,10 @@ public class HeatingThermostat extends Device {
             setUpdated(true);
         }
         this.temperatureSetpoint = value / 2.0;
+    }
+
+    public void setTemperatureSetpoint(double value) {
+        setTemperatureSetpoint((int) (value * 2.0));
     }
 
     /**

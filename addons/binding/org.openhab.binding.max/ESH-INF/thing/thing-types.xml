@@ -15,6 +15,7 @@
 			<channel id="valve" typeId="valve" />
 			<channel id="battery_low" typeId="system.low-battery" />
 			<channel id="mode" typeId="mode" />
+			<channel id="extended_mode" typeId="extended_mode" />
 			<channel id="actual_temp" typeId="actual_temp" />
 			<channel id="set_temp" typeId="set_temp" />
 			<channel id="locked" typeId="locked" />
@@ -143,6 +144,7 @@
 			<channel id="valve" typeId="valve" />
 			<channel id="battery_low" typeId="system.low-battery" />
 			<channel id="mode" typeId="mode" />
+			<channel id="extended_mode" typeId="extended_mode" />
 			<channel id="actual_temp" typeId="actual_temp" />
 			<channel id="set_temp" typeId="set_temp" />
 			<channel id="locked" typeId="locked" />
@@ -272,6 +274,7 @@
 			<channel id="valve" typeId="valve" />
 			<channel id="battery_low" typeId="system.low-battery" />
 			<channel id="mode" typeId="mode" />
+			<channel id="extended_mode" typeId="extended_mode" />
 			<channel id="actual_temp" typeId="actual_temp" />
 			<channel id="set_temp" typeId="set_temp" />
 			<channel id="locked" typeId="locked" />
@@ -452,6 +455,29 @@
 				<option value="MANUAL">MANUAL</option>
 				<option value="BOOST">BOOST</option>
 				<option value="VACATION">VACATION</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="extended_mode">
+		<item-type>String</item-type>
+		<label>Extended Mode</label>
+		<description>Thermostat Extended Mode Setting</description>
+		<tags>
+			<tag>heating</tag>
+		</tags>
+		<state pattern="%s" readOnly="false">
+			<options>
+				<option value="AUTOMATIC">AUTOMATIC</option>
+				<option value="MANUAL">MANUAL</option>
+				<option value="BOOST">BOOST</option>
+				<option value="VACATION">VACATION</option>
+				<option value="OFF">OFF</option>
+				<option value="MIN">MIN</option>
+				<option value="ECO">ECO</option>
+				<option value="COMFORT">COMFORT</option>
+				<option value="MAX">MAX</option>
+				<option value="ON">ON</option>
 			</options>
 		</state>
 	</channel-type>

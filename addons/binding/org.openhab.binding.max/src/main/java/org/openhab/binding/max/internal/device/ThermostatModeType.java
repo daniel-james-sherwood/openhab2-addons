@@ -24,8 +24,11 @@ public enum ThermostatModeType implements PrimitiveType, State, Command {
     VACATION,
     BOOST,
     OFF,
+    MIN,
     ECO,
-    COMFORT;
+    COMFORT,
+    MAX,
+    ON;
 
     @Override
     public String format(String pattern) {

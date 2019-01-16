@@ -48,6 +48,7 @@ public class MaxBindingConstants {
     public static final String CHANNEL_VALVE = "valve";
     public static final String CHANNEL_BATTERY = "battery_low";
     public static final String CHANNEL_MODE = "mode";
+    public static final String CHANNEL_EXTENDED_MODE = "extended_mode";
     public static final String CHANNEL_ACTUALTEMP = "actual_temp";
     public static final String CHANNEL_SETTEMP = "set_temp";
     public static final String CHANNEL_LOCKED = "locked";
