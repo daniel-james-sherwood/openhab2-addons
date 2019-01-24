@@ -73,10 +73,10 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
     public static final int REFRESH_ACTUAL_DURATION = 120; // seconds
     private static final long COMMUNICATION_DELAY_TIME = 120;
     private int refreshActualRate;
-    private boolean refreshingActuals;
+    public double refreshingActuals;
     private ScheduledFuture<?> refreshActualsJob;
-    private double originalSetTemp;
-    private ThermostatModeType originalMode;
+    public double originalSetTemp;
+    public ThermostatModeType originalMode;
 
     public MaxDevicesHandler(Thing thing) {
         super(thing);
@@ -116,7 +116,7 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
     @Override
     public void dispose() {
         logger.debug("Disposing MAX! device {} {}.", getThing().getUID(), maxDeviceSerial);
-        if (refreshingActuals) {
+        if (refreshingActuals != 0.0) {
             refreshActualsRestore();
         }
         if (refreshActualsJob != null && !refreshActualsJob.isCancelled()) {
@@ -317,8 +317,7 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
         return this.bridgeHandler;
     }
 
-    @Override
-    public void handleCommand(ChannelUID channelUID, Command command) {
+    public void handleCommand(ChannelUID channelUID, Command command, boolean refreshActualRestore) {
         final MaxCubeBridgeHandler maxCubeBridge = getMaxCubeBridgeHandler();
         if (maxCubeBridge == null) {
             logger.debug("MAX! Cube LAN gateway bridge handler not found. Cannot handle command without bridge.");
@@ -337,7 +336,7 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
             case CHANNEL_SETTEMP:
             case CHANNEL_MODE:
             case CHANNEL_EXTENDED_MODE:
-                if (refreshingActuals) {
+                if (refreshActualRestore && refreshingActuals != 0.0) {
                     refreshActualsRestore();
                 }
                 maxCubeBridge.queueCommand(new SendCommand(maxDeviceSerial, channelUID, command));
@@ -349,19 +348,25 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
     }
 
     @Override
+    public void handleCommand(ChannelUID channelUID, Command command) {
+        handleCommand(channelUID, command, true);
+    }
+
+    @Override
     public void onDeviceStateChanged(ThingUID bridge, Device device) {
         if (!device.getSerialNumber().equals(maxDeviceSerial)) {
             return;
         }
         if (device.isError() || device.isLinkStatusError()) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.OFFLINE.COMMUNICATION_ERROR);
-        } else if (!refreshingActuals) {
+        } else if (refreshingActuals == 0.0) {
             updateStatus(ThingStatus.ONLINE);
         } else {
             updateStatus(ThingStatus.ONLINE, ThingStatusDetail.NONE, "Updating Actual Temperature");
         }
         if (!propertiesSet) {
             setProperties(device);
+            device.SetHandler(this);
         }
         if (!configSet) {
             setDeviceConfiguration(device);
@@ -427,7 +432,7 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
         }
         long timediff = Calendar.getInstance().getTime().getTime() - device.getActualTempLastUpdated().getTime();
         if (timediff > ((long) refreshActualRate) * 1000 * 60) {
-            if (!refreshingActuals) {
+            if (refreshingActuals == 0.0) {
                 logger.debug("Actual needs updating for {} {} ({}) id: {}", device.getType(), device.getName(),
                         device.getSerialNumber(), getThing().getUID());
 
@@ -436,19 +441,19 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
 
                 if (originalMode == ThermostatModeType.MANUAL || originalMode == ThermostatModeType.AUTOMATIC) {
                     double tempSetTemp = originalSetTemp;
-                    if (refreshActualRate == 45) {
-                        tempSetTemp += 0.5;
+                    refreshingActuals = -0.5;
+                    if (originalSetTemp <= 5.0) {
+                        refreshingActuals = +0.5;
                     }
                     logger.debug("Actuals Refresh: Setting Temp {}", tempSetTemp);
                     handleCommand(new ChannelUID(getThing().getUID(), CHANNEL_SETTEMP),
-                            new QuantityType<>(tempSetTemp, CELSIUS));
-                    refreshingActuals = true;
+                            new QuantityType<>(tempSetTemp, CELSIUS), false);
                 } else {
                     logger.debug("Defer Actuals refresh. Only manual refresh for mode AUTOMATIC & MANUAL");
                     device.setActualTempLastUpdated(Calendar.getInstance().getTime());
                 }
 
-                if (refreshingActuals) {
+                if (refreshingActuals != 0.0) {
                     updateStatus(ThingStatus.ONLINE, ThingStatusDetail.NONE, "Updating Actual Temperature");
 
                     if (refreshActualsJob == null || refreshActualsJob.isCancelled()) {
@@ -474,13 +479,14 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
      * Send the commands to restore the original settings for mode & temperature
      * to end the automatic update cycle
      */
-    private synchronized void refreshActualsRestore() {
+    public synchronized void refreshActualsRestoreCore(boolean restore) {
         try {
-            refreshingActuals = false;
-            if (originalMode == ThermostatModeType.AUTOMATIC || originalMode == ThermostatModeType.MANUAL) {
+            refreshingActuals = 0.0;
+            if (restore
+                    && (originalMode == ThermostatModeType.AUTOMATIC || originalMode == ThermostatModeType.MANUAL)) {
                 logger.debug("Finished Actuals Refresh: Restoring Temp {}", originalSetTemp);
                 handleCommand(new ChannelUID(getThing().getUID(), CHANNEL_SETTEMP),
-                        new QuantityType<>(originalSetTemp, CELSIUS));
+                        new QuantityType<>(originalSetTemp, CELSIUS), false);
             }
 
             if (refreshActualsJob != null && !refreshActualsJob.isCancelled()) {
@@ -490,6 +496,10 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
         } catch (Exception e) {
             logger.debug("Exception occurred during Actuals Refresh : {}", e.getMessage(), e);
         }
+    }
+
+    public void refreshActualsRestore() {
+        refreshActualsRestoreCore(true);
     }
 
     @Override

@@ -16,6 +16,7 @@ import java.util.Map;
 import org.eclipse.smarthome.core.library.types.OnOffType;
 import org.eclipse.smarthome.core.library.types.OpenClosedType;
 import org.openhab.binding.max.internal.Utils;
+import org.openhab.binding.max.internal.handler.MaxDevicesHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,8 @@ public abstract class Device {
     private Map<String, Object> properties = new HashMap<>();
 
     public double ecoComfortSetpoint = 0;
+
+    private MaxDevicesHandler handler;
 
     public Device(DeviceConfiguration c) {
         this.serialNumber = c.getSerialNumber();
@@ -169,7 +172,13 @@ public abstract class Device {
                 }
 
                 heatingThermostat.setValvePosition(raw[6] & 0xFF);
-                heatingThermostat.setTemperatureSetpoint(raw[7] & 0x7F);
+                heatingThermostat.setTemperatureSetpoint(((raw[7] & 0x7F) / 2.0) - device.getRefreshingActuals());
+
+                if (device.getRefreshingActuals() != 0.0
+                        && (device.getOriginalSetTemp() != heatingThermostat.getTemperatureSetpoint()
+                                || device.getOriginalMode() != heatingThermostat.getMode())) {
+                    device.refreshActualsRestore(false);
+                }
 
                 ThermostatModeType extendedMode = heatingThermostat.getExtendedMode();
                 ThermostatModeType mode = heatingThermostat.getMode();
@@ -197,9 +206,11 @@ public abstract class Device {
                 }
 
                 if (mode == setMode) {
-                    LOGGER.debug("updates to {} mode with temperature {}", mode, setTemp / 2.0);
+                    LOGGER.debug("updates to {} mode with temperature {} [offset {}]", mode, setTemp,
+                            device.getRefreshingActuals());
                 } else {
-                    LOGGER.debug("updates to {}/{} mode with temperature {}", setMode, mode, setTemp / 2.0);
+                    LOGGER.debug("updates to {}/{} mode with temperature {} [offset {}]", setMode, mode, setTemp,
+                            device.getRefreshingActuals());
                 }
 
                 heatingThermostat.setExtendedMode(setMode);
@@ -421,5 +432,28 @@ public abstract class Device {
     @Override
     public String toString() {
         return this.getType().toString() + " (" + rfAddress + ") '" + this.getName() + "'";
+    }
+
+    public void SetHandler(MaxDevicesHandler handler) {
+        this.handler = handler;
+    }
+
+    public double getRefreshingActuals() {
+        return handler != null ? handler.refreshingActuals : 0.0;
+    }
+
+    private void refreshActualsRestore(boolean restore) {
+        if (handler != null) {
+            handler.refreshActualsRestoreCore(true);
+        }
+    }
+
+    private double getOriginalSetTemp() {
+        return handler != null ? handler.originalSetTemp : 0.0;
+    }
+
+    private ThermostatModeType getOriginalMode() {
+        // TODO Auto-generated method stub
+        return handler != null ? handler.originalMode : ThermostatModeType.AUTOMATIC;
     }
 }

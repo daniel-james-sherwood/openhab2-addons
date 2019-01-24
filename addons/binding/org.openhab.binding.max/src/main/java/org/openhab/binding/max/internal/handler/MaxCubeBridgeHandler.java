@@ -416,6 +416,7 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
 
         ThermostatModeType mode = device.getMode();
         double setTemp = device.getTemperatureSetpoint();
+        double refreshingActuals = device.getRefreshingActuals();
         // Temperature setting
         if (channelUID.getId().equals(CHANNEL_SETTEMP)) {
             if (command instanceof QuantityType || command instanceof OnOffType) {
@@ -482,9 +483,10 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
             }
         }
         if (mode == device.getExtendedMode()) {
-            logger.debug("updates to {} mode with temperature {}", mode, setTemp);
+            logger.debug("updates to {} mode with temperature {} [offset {}]", mode, setTemp, refreshingActuals);
         } else {
-            logger.debug("updates to {}/{} mode with temperature {}", device.getExtendedMode(), mode, setTemp);
+            logger.debug("updates to {}/{} mode with temperature {} [offset {}]", device.getExtendedMode(), mode,
+                    setTemp, refreshingActuals);
         }
         for (DeviceStatusListener deviceStatusListener : deviceStatusListeners) {
             try {
@@ -494,7 +496,7 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
                 unregisterDeviceStatusListener(deviceStatusListener);
             }
         }
-        return new SCommand(device.getRFAddress(), device.getRoomId(), mode, setTemp);
+        return new SCommand(device.getRFAddress(), device.getRoomId(), mode, setTemp + refreshingActuals);
     }
 
     /**
