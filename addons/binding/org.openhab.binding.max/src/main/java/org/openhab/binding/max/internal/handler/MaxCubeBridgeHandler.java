@@ -23,6 +23,7 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -416,9 +417,11 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
 
         if (channelUID.getId().equals(CHANNEL_OFFSET_TEMP)) {
             if (command instanceof QuantityType) {
-                double offset = ((QuantityType<Temperature>) command).toUnit(CELSIUS).toBigDecimal()
-                        .setScale(1, RoundingMode.HALF_UP).doubleValue();
-                // properties.put(PROPERTY_THERMO_OFFSET_TEMP, tempOffset.setScale(1, RoundingMode.HALF_DOWN));
+                BigDecimal offset = ((QuantityType<Temperature>) command).toUnit(CELSIUS).toBigDecimal().setScale(1,
+                        RoundingMode.HALF_UP);
+                Map<String, Object> configurationParameters = new HashMap<String, Object>();
+                configurationParameters.put(PROPERTY_THERMO_OFFSET_TEMP, offset);
+                device.GetHandler().handleConfigurationUpdate(configurationParameters);
             }
             return null;
         }

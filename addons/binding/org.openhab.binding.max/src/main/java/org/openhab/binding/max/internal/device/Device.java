@@ -438,6 +438,10 @@ public abstract class Device {
         this.handler = handler;
     }
 
+    public MaxDevicesHandler GetHandler() {
+        return this.handler;
+    }
+
     public double getRefreshingActuals() {
         return handler != null ? handler.refreshingActuals : 0.0;
     }
