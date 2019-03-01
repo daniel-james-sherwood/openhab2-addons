@@ -414,6 +414,15 @@ public class MaxCubeBridgeHandler extends BaseBridgeHandler {
             return null;
         }
 
+        if (channelUID.getId().equals(CHANNEL_OFFSET_TEMP)) {
+            if (command instanceof QuantityType) {
+                double offset = ((QuantityType<Temperature>) command).toUnit(CELSIUS).toBigDecimal()
+                        .setScale(1, RoundingMode.HALF_UP).doubleValue();
+                // properties.put(PROPERTY_THERMO_OFFSET_TEMP, tempOffset.setScale(1, RoundingMode.HALF_DOWN));
+            }
+            return null;
+        }
+
         ThermostatModeType mode = device.getMode();
         double setTemp = device.getTemperatureSetpoint();
         double refreshingActuals = device.getRefreshingActuals();

@@ -8,6 +8,8 @@
  */
 package org.openhab.binding.max.internal.device;
 
+import static org.openhab.binding.max.internal.MaxBindingConstants.PROPERTY_THERMO_OFFSET_TEMP;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Calendar;
@@ -180,6 +182,16 @@ public class HeatingThermostat extends Device {
      */
     public double getTemperatureSetpoint() {
         return this.temperatureSetpoint;
+    }
+
+    /**
+     * Returns the offset temperature of this thermostat.
+     *
+     * @return
+     *         the offset temperature as <code>QuantityType</code>
+     */
+    public double getTemperatureOffset() {
+        return Double.valueOf(getProperties().get(PROPERTY_THERMO_OFFSET_TEMP).toString());
     }
 
     /**

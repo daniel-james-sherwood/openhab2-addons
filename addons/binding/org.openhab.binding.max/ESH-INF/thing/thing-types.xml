@@ -18,6 +18,7 @@
 			<channel id="extended_mode" typeId="extended_mode" />
 			<channel id="actual_temp" typeId="actual_temp" />
 			<channel id="set_temp" typeId="set_temp" />
+			<channel id="offset_temp" typeId="offset_temp" />
 			<channel id="locked" typeId="locked" />
 		</channels>
 
@@ -147,6 +148,7 @@
 			<channel id="extended_mode" typeId="extended_mode" />
 			<channel id="actual_temp" typeId="actual_temp" />
 			<channel id="set_temp" typeId="set_temp" />
+			<channel id="offset_temp" typeId="offset_temp" />
 			<channel id="locked" typeId="locked" />
 		</channels>
 
@@ -277,6 +279,7 @@
 			<channel id="extended_mode" typeId="extended_mode" />
 			<channel id="actual_temp" typeId="actual_temp" />
 			<channel id="set_temp" typeId="set_temp" />
+			<channel id="offset_temp" typeId="offset_temp" />
 			<channel id="locked" typeId="locked" />
 		</channels>
 
@@ -497,6 +500,17 @@
 		<item-type>Number:Temperature</item-type>
 		<label>Setpoint Temperature</label>
 		<description>Thermostat Setpoint temperature</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>heating</tag>
+		</tags>
+		<state pattern="%.1f %unit%" />
+	</channel-type>
+
+	<channel-type id="offset_temp">
+		<item-type>Number:Temperature</item-type>
+		<label>Offset Temperature</label>
+		<description>Thermostat Offset temperature</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>heating</tag>

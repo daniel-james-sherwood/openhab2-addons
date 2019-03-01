@@ -91,7 +91,7 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
             try {
                 refreshActualRate = ((BigDecimal) config.get(PROPERTY_REFRESH_ACTUAL_RATE)).intValueExact();
             } catch (Exception e) {
-                refreshActualRate = 0;
+                refreshActualRate = 45;
             }
 
             if (configDeviceId != null) {
@@ -341,6 +341,9 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
                 }
                 maxCubeBridge.queueCommand(new SendCommand(maxDeviceSerial, channelUID, command));
                 break;
+            case CHANNEL_OFFSET_TEMP:
+                maxCubeBridge.queueCommand(new SendCommand(maxDeviceSerial, channelUID, command));
+                break;
             default:
                 logger.warn("Setting of channel '{}' not possible, channel is read-only.", channelUID);
                 break;
@@ -386,6 +389,8 @@ public class MaxDevicesHandler extends BaseThingHandler implements DeviceStatusL
                             ((HeatingThermostat) device).isPanelLocked() ? OpenClosedType.CLOSED : OpenClosedType.OPEN);
                     updateState(new ChannelUID(getThing().getUID(), CHANNEL_SETTEMP),
                             new QuantityType<>(((HeatingThermostat) device).getTemperatureSetpoint(), CELSIUS));
+                    updateState(new ChannelUID(getThing().getUID(), CHANNEL_OFFSET_TEMP),
+                            new QuantityType<>(((HeatingThermostat) device).getTemperatureOffset(), CELSIUS));
                     updateState(new ChannelUID(getThing().getUID(), CHANNEL_MODE),
                             new StringType(((HeatingThermostat) device).getModeString()));
                     updateState(new ChannelUID(getThing().getUID(), CHANNEL_EXTENDED_MODE),
