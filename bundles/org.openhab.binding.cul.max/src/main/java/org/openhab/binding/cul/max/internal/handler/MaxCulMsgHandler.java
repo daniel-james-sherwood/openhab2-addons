@@ -100,7 +100,7 @@ public class MaxCulMsgHandler implements CULListener {
         return cul.getCredit10ms();
     }
 
-    private void transmitMessage(BaseMsg data, @Nullable SenderQueueItem queueItem) {
+    private synchronized void transmitMessage(BaseMsg data, @Nullable SenderQueueItem queueItem) {
         try {
             cul.send(data.rawMsg);
         } catch (CULCommunicationException e) {
@@ -153,11 +153,11 @@ public class MaxCulMsgHandler implements CULListener {
      * @param msg Base message to send
      * @param queueItem queue item (used for retransmission)
      */
-    private void sendMessage(BaseMsg msg, @Nullable SenderQueueItem queueItem) {
+    private synchronized void sendMessage(BaseMsg msg, @Nullable SenderQueueItem queueItem) {
         Timer timer = null;
 
         if (msg.readyToSend()) {
-            if (enoughCredit(msg.requiredCredit(), msg.isFastSend()) && this.sendQueue.isEmpty()) {
+            if (enoughCredit(msg.requiredCredit(), msg.isFastSend()) && this.sendQueue.isEmpty() && this.pendingAckQueue.isEmpty()) {
                 /*
                  * send message as we have enough credit and nothing is on the
                  * queue waiting
