@@ -78,6 +78,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
     private MaxCulWeekProfile weekProfile = ConfigWeekProfileMsg.DEFAULT_WEEK_PROFILE;
     private Set<String> associatedSerials = new HashSet<>();
     private @Nullable Timer pacingTimer = null;
+    private @Nullable MaxCulPacedThermostatRefreshTask refreshTemperatureStateTask;
 
     private ThermostatControlMode mode = ThermostatControlMode.UNKOWN;
     private double settemp = -1.0;
@@ -135,6 +136,9 @@ public class MaxDevicesHandler extends BaseThingHandler {
             if (bridgeHandler == null) {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Valid bridge is required");
                 return;
+            } else {
+                refreshTemperatureStateTask = new MaxCulPacedThermostatRefreshTask(this, bridgeHandler);
+                refreshTemperatureStateTask.start();
             }
             updateStatus(ThingStatus.UNKNOWN);
         } catch (Exception e) {
@@ -250,6 +254,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
                             mode, settemp, this, bridgeHandler);
                     pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
+                    refreshTemperatureStateTask.start();
                 }
                 break;
             case CHANNEL_SETTEMP:
@@ -292,6 +297,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
                             mode, settemp, this, bridgeHandler);
                     pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
+                    refreshTemperatureStateTask.start();
                 }
                 break;
             case CHANNEL_DISPLAY_ACTUAL_TEMP:
@@ -337,6 +343,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
             }
             // TODO handle UntilDate when mode is ThermostatControlMode.TEMPORARY
             // ((DesiredTemperatureStateMsg) msg).getUntilDateTime()
+            refreshTemperatureStateTask.start();
         }
         if (msg instanceof ThermostatCommonStateMsg) {
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_LOCKED),
