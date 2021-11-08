@@ -47,7 +47,7 @@ public enum ThermostatControlMode {
         return controlMode;
     }
 
-    static ThermostatControlMode fromString(String value) {
+    public static ThermostatControlMode fromString(String value) {
         switch (value) {
             case "AUTOMATIC":
                 return AUTO;

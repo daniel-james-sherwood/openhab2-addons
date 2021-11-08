@@ -79,6 +79,9 @@ public class MaxDevicesHandler extends BaseThingHandler {
     private Set<String> associatedSerials = new HashSet<>();
     private @Nullable Timer pacingTimer = null;
 
+    private ThermostatControlMode mode = ThermostatControlMode.UNKOWN;
+    private double settemp = -1.0;
+
     @Override
     public Collection<Class<? extends ThingHandlerService>> getServices() {
         return Collections.singleton(MaxDevicesActions.class);
@@ -227,57 +230,67 @@ public class MaxDevicesHandler extends BaseThingHandler {
                 logger.debug("Channel {} is a read-only channel and cannot handle command '{}'", channelUID, command);
                 break;
             case CHANNEL_MODE:
-                // TODO Allow change of mode
-                logger.debug(
-                        "Channel {} is currently read-only channel and cannot handle command '{}' as it is not implemented yet",
-                        channelUID, command);
+                ThermostatControlMode new_mode = ThermostatControlMode.UNKOWN;
+                if (command instanceof StringType) {
+                    new_mode = ThermostatControlMode.fromString(command.toString());
+                } else if (command instanceof DecimalType) {
+                    new_mode = ThermostatControlMode.values()[((DecimalType) command).intValue()];
+                } else if (command instanceof QuantityType<?>) {
+                    new_mode = ThermostatControlMode.values()[((QuantityType<?>) command).intValue()];
+                }
+                if (new_mode != mode) {
+                    mode = new_mode;
+                    /* clear out old pacing timer */
+                    if (pacingTimer != null) {
+                        pacingTimer.cancel();
+                        pacingTimer = null;
+                    }
+                    /* schedule new timer */
+                    pacingTimer = new Timer();
+                    MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
+                            mode, settemp, this, bridgeHandler);
+                    pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
+                }
                 break;
             case CHANNEL_SETTEMP:
-                /* clear out old pacing timer */
-                Timer pacingTimer = this.pacingTimer;
-                if (pacingTimer != null) {
-                    pacingTimer.cancel();
-                    this.pacingTimer = null;
-                }
-                /* schedule new timer */
-                pacingTimer = new Timer();
-                MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = null;
+                double new_settemp = -1.0;
                 if (command instanceof OnOffType) {
                     if (command == OnOffType.ON) {
-                        pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                                ThermostatControlMode.MANUAL, getMaxTemp(), this, bridgeHandler);
-
+                        new_settemp = getMaxTemp();
                     } else if (command == OnOffType.OFF) {
-                        pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                                ThermostatControlMode.MANUAL, getMinTemp(), this, bridgeHandler);
+                        new_settemp = getMinTemp();
                     }
                 } else if (command instanceof StringType) {
                     switch (command.toString()) {
                         case "ON":
-                            pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                                    ThermostatControlMode.MANUAL, getMaxTemp(), this, bridgeHandler);
+                            new_settemp = getMaxTemp();
                             break;
                         case "OFF":
-                            pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                                    ThermostatControlMode.MANUAL, getMinTemp(), this, bridgeHandler);
+                            new_settemp = getMinTemp();
                             break;
                         case "ECO":
-                            pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                                    ThermostatControlMode.MANUAL, getEcoTemp(), this, bridgeHandler);
+                            new_settemp = getEcoTemp();
                             break;
                         case "COMFORT":
-                            pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                                    ThermostatControlMode.MANUAL, getComfortTemp(), this, bridgeHandler);
+                            new_settemp = getComfortTemp();
                             break;
                     }
                 } else if (command instanceof DecimalType) {
-                    pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(ThermostatControlMode.MANUAL,
-                            ((DecimalType) command).doubleValue(), this, bridgeHandler);
+                    new_settemp = ((DecimalType) command).doubleValue();
                 } else if (command instanceof QuantityType<?>) {
-                    pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(ThermostatControlMode.MANUAL,
-                            ((QuantityType<?>) command).doubleValue(), this, bridgeHandler);
+                    new_settemp = ((QuantityType<?>) command).doubleValue();
                 }
-                if (pacedThermostatTransmitTask != null) {
+                if (new_settemp != settemp) {
+                    settemp = new_settemp;
+                    /* clear out old pacing timer */
+                    if (pacingTimer != null) {
+                        pacingTimer.cancel();
+                        pacingTimer = null;
+                    }
+                    /* schedule new timer */
+                    pacingTimer = new Timer();
+                    MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
+                            mode, settemp, this, bridgeHandler);
                     pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
                 }
                 break;
@@ -313,10 +326,12 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     new DecimalType(((ThermostatValveStateMsg) msg).getValvePos()));
         }
         if (msg instanceof DesiredTemperatureStateMsg) {
+            mode = ((DesiredTemperatureStateMsg) msg).getControlMode();
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_MODE),
-                    new StringType(((DesiredTemperatureStateMsg) msg).getControlMode().toString()));
+                    new StringType(mode.toString()));
             Double desiredTemperature = ((DesiredTemperatureStateMsg) msg).getDesiredTemperature();
             if (desiredTemperature != null) {
+                settemp = desiredTemperature;
                 updateState(new ChannelUID(getThing().getUID(), CHANNEL_SETTEMP),
                         new QuantityType<>(desiredTemperature, CELSIUS));
             }
