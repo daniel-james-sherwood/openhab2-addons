@@ -74,11 +74,11 @@ public class MaxDevicesHandler extends BaseThingHandler {
     private double minTemp = ConfigTemperaturesMsg.DEFAULT_MIN_TEMP;
     private double windowOpenTemperature = ConfigTemperaturesMsg.DEFAULT_WINDOW_OPEN_TEMP;
     private int windowOpenDuration = ConfigTemperaturesMsg.DEFAULT_WINDOW_OPEN_TIME;
+    private int refreshPeriod = ConfigTemperaturesMsg.DEFAULT_REFRESH_PERIOD;
     private double measurementOffset = ConfigTemperaturesMsg.DEFAULT_OFFSET;
     private MaxCulWeekProfile weekProfile = ConfigWeekProfileMsg.DEFAULT_WEEK_PROFILE;
     private Set<String> associatedSerials = new HashSet<>();
     private @Nullable Timer pacingTimer = null;
-    private @Nullable MaxCulPacedThermostatRefreshTask refreshTemperatureStateTask;
 
     private ThermostatControlMode mode = ThermostatControlMode.UNKOWN;
     private double settemp = -1.0;
@@ -137,14 +137,23 @@ public class MaxDevicesHandler extends BaseThingHandler {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Valid bridge is required");
                 return;
             } else {
-                refreshTemperatureStateTask = new MaxCulPacedThermostatRefreshTask(this, bridgeHandler);
-                refreshTemperatureStateTask.start();
+                ThingTypeUID thingTypeUID = getThing().getThingTypeUID();
+                if ((HEATINGTHERMOSTAT_THING_TYPE.equals(thingTypeUID) || HEATINGTHERMOSTATPLUS_THING_TYPE.equals(thingTypeUID)
+                        || WALLTHERMOSTAT_THING_TYPE.equals(thingTypeUID))) {
+                    startThermostatRefresh(INITIAL_REFRESH_PERIOD);
+                }
             }
             updateStatus(ThingStatus.UNKNOWN);
         } catch (Exception e) {
             logger.debug("Exception occurred during initialize : {}", e.getMessage(), e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
+    }
+
+    @Override
+    public void dispose() 
+    {
+        startThermostatRefresh(0);
     }
 
     private void getConfigurationValues(Configuration config) {
@@ -181,6 +190,11 @@ public class MaxDevicesHandler extends BaseThingHandler {
         if (windowOpenDurationCfg != null) {
             windowOpenDuration = windowOpenDurationCfg.intValue();
             logger.trace("Window open duration is set to {} for {}", windowOpenDuration, getDeviceSerial());
+        }
+        final BigDecimal refreshPeriodCfg = (BigDecimal) config.get(PROPERTY_THERMO_REFRESH_PERIOD);
+        if (refreshPeriodCfg != null) {
+            refreshPeriod = refreshPeriodCfg.intValue();
+            logger.trace("Refresh period duration is set to {} for {}", refreshPeriod, getDeviceSerial());
         }
         final BigDecimal windowOpenTempCfg = (BigDecimal) config.get(PROPERTY_THERMO_WINDOW_OPEN_TEMP);
         if (windowOpenTempCfg != null) {
@@ -252,9 +266,8 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     /* schedule new timer */
                     pacingTimer = new Timer();
                     MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                            mode, settemp, this, bridgeHandler);
+                            mode, settemp + thermostatRefeshAdjust, this, bridgeHandler);
                     pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
-                    refreshTemperatureStateTask.start();
                 }
                 break;
             case CHANNEL_SETTEMP:
@@ -295,9 +308,8 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     /* schedule new timer */
                     pacingTimer = new Timer();
                     MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                            mode, settemp, this, bridgeHandler);
+                            mode, settemp + thermostatRefeshAdjust, this, bridgeHandler);
                     pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
-                    refreshTemperatureStateTask.start();
                 }
                 break;
             case CHANNEL_DISPLAY_ACTUAL_TEMP:
@@ -337,9 +349,9 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     new StringType(mode.toString()));
             Double desiredTemperature = ((DesiredTemperatureStateMsg) msg).getDesiredTemperature();
             if (desiredTemperature != null) {
-                settemp = desiredTemperature;
+                settemp = desiredTemperature - thermostatRefeshAdjust;
                 updateState(new ChannelUID(getThing().getUID(), CHANNEL_SETTEMP),
-                        new QuantityType<>(desiredTemperature, CELSIUS));
+                        new QuantityType<>(settemp, CELSIUS));
             }
             // TODO handle UntilDate when mode is ThermostatControlMode.TEMPORARY
             // ((DesiredTemperatureStateMsg) msg).getUntilDateTime()
@@ -355,7 +367,12 @@ public class MaxDevicesHandler extends BaseThingHandler {
             Double actualTemp = ((ActualTemperatureStateMsg) msg).getMeasuredTemperature();
             if (actualTemp != null && actualTemp != 0) {
                 updateState(new ChannelUID(getThing().getUID(), CHANNEL_ACTUALTEMP),
-                        new QuantityType<>(actualTemp, CELSIUS));
+                        new QuantityType<>(actualTemp - thermostatRefeshAdjust, CELSIUS));
+                if (thermostatRefeshAdjust != 0.0) {
+                    handleThermostatRefresh();
+                } else {
+                    startThermostatRefresh(getRefreshPeriodMs());
+                }
             }
         }
         if (msg instanceof WallThermostatControlMsg) {
@@ -418,6 +435,14 @@ public class MaxDevicesHandler extends BaseThingHandler {
         return windowOpenDuration;
     }
 
+    public int getRefreshPeriod() {
+        return refreshPeriod;
+    }
+
+    public int getRefreshPeriodMs() {
+        return refreshPeriod * 1000;
+    }
+
     public double getMeasurementOffset() {
         return measurementOffset;
     }
@@ -444,5 +469,74 @@ public class MaxDevicesHandler extends BaseThingHandler {
         } else {
             logger.warn("Can not reset device without a bridge");
         }
+    }
+
+
+    private class ThermostatRefreshTask  extends TimerTask {
+        private final MaxDevicesHandler handler;
+
+        public ThermostatRefreshTask(MaxDevicesHandler _handler) {
+            handler = _handler;
+        }
+
+        public void run() {
+            handler.handleThermostatRefresh();
+        }
+    }
+
+    private @Nullable Timer thermostatRefreshTimer = null;
+    private double thermostatRefeshAdjust = 0.0;
+
+    private static final int INITIAL_REFRESH_PERIOD = 10000;
+
+    private synchronized void startThermostatRefresh(int refreshTime)
+    {
+        if (thermostatRefreshTimer != null)
+        {
+            thermostatRefreshTimer.cancel();
+            thermostatRefreshTimer = null;
+            if (refreshTime == 0) {
+                logger.info("Stopped thermostat refresh timer on {}", rfAddress);
+                return;
+            }
+        }
+        if (refreshTime > 0)
+        {
+            thermostatRefreshTimer = new Timer();
+            thermostatRefreshTimer.schedule(new ThermostatRefreshTask(this), refreshTime);
+            logger.info("Starting thermostat refresh timer on {} for {}", rfAddress, refreshTime);
+        }
+    }
+
+    private synchronized void handleThermostatRefresh()
+    {
+        if (mode != ThermostatControlMode.UNKOWN) {
+            if (thermostatRefeshAdjust == 0.0) {
+                thermostatRefeshAdjust = 0.5;
+            } else {
+                thermostatRefeshAdjust = 0.0;
+            }
+            logger.info("Handling thermostat refresh on {}, adjust {}, settemp {}, offset {}", rfAddress, thermostatRefeshAdjust, settemp + thermostatRefeshAdjust, getMeasurementOffset() + thermostatRefeshAdjust);
+            bridgeHandler.sendSetTemperature(this, mode, settemp + thermostatRefeshAdjust);
+            bridgeHandler.sendConfigTemperatures(this,
+                                                getComfortTemp(),
+                                                getEcoTemp(), 
+                                                getMaxTemp(),
+                                                getMinTemp(), 
+                                                getMeasurementOffset() + thermostatRefeshAdjust,
+                                                getWindowOpenTemperature(),
+                                                getWindowOpenDuration());
+        } else {
+            logger.info("Handling initial thermostat refresh on {}, adjust {}, offset {}", rfAddress, thermostatRefeshAdjust, getMeasurementOffset() - thermostatRefeshAdjust);
+        }
+        bridgeHandler.sendConfigTemperatures(this,
+                                            getComfortTemp(),
+                                            getEcoTemp(), 
+                                            getMaxTemp(),
+                                            getMinTemp(), 
+                                            getMeasurementOffset() + thermostatRefeshAdjust,
+                                            getWindowOpenTemperature(),
+                                            getWindowOpenDuration());
+        startThermostatRefresh(mode != ThermostatControlMode.UNKOWN || getRefreshPeriodMs() == 0 ? getRefreshPeriodMs() : INITIAL_REFRESH_PERIOD);
     }
 }

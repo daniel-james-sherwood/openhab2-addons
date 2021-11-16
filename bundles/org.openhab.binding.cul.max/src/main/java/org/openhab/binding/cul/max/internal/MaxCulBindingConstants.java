@@ -77,6 +77,7 @@ public class MaxCulBindingConstants {
     public static final String PROPERTY_THERMO_OFFSET_TEMP = "offsetTemp";
     public static final String PROPERTY_THERMO_WINDOW_OPEN_TEMP = "windowOpenTemp";
     public static final String PROPERTY_THERMO_WINDOW_OPEN_DURATION = "windowOpenDuration";
+    public static final String PROPERTY_THERMO_REFRESH_PERIOD = "refreshPeriod";
     public static final String PROPERTY_THERMO_WEEK_PROFILE = "weekProfile";
     public static final String PROPERTY_ASSOSIATE = "associate";
 

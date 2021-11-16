@@ -39,6 +39,7 @@ public class ConfigTemperaturesMsg extends BaseMsg {
     public static final double DEFAULT_OFFSET = 0.0;
     public static final double DEFAULT_WINDOW_OPEN_TEMP = 4.5; // OFF
     public static final int DEFAULT_WINDOW_OPEN_TIME = 0; // OFF
+    public static final int DEFAULT_REFRESH_PERIOD = 0; // OFF
 
     private double comfortTemp = 21.0;
     private double ecoTemp = 17.0;
