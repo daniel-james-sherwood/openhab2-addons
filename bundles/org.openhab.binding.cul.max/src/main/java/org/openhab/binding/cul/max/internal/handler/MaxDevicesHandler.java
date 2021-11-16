@@ -24,10 +24,13 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.cul.max.internal.MaxCulBindingConstants;
 import org.openhab.binding.cul.max.internal.actions.MaxDevicesActions;
 import org.openhab.binding.cul.max.internal.config.WeekProfileConfigHelper;
+import org.openhab.binding.cul.max.internal.message.sequencers.PairingInitialisationSequence;
 import org.openhab.binding.cul.max.internal.messages.*;
+import org.openhab.binding.cul.max.internal.messages.constants.MaxCulDevice;
 import org.openhab.binding.cul.max.internal.messages.constants.PushButtonMode;
 import org.openhab.binding.cul.max.internal.messages.constants.ShutterContactState;
 import org.openhab.binding.cul.max.internal.messages.constants.ThermostatControlMode;
+import org.openhab.binding.cul.max.internal.messages.PairPingMsg;
 import org.openhab.core.config.core.Configuration;
 import org.openhab.core.library.types.*;
 import org.openhab.core.model.item.BindingConfigParseException;
@@ -355,7 +358,6 @@ public class MaxDevicesHandler extends BaseThingHandler {
             }
             // TODO handle UntilDate when mode is ThermostatControlMode.TEMPORARY
             // ((DesiredTemperatureStateMsg) msg).getUntilDateTime()
-            refreshTemperatureStateTask.start();
         }
         if (msg instanceof ThermostatCommonStateMsg) {
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_LOCKED),
@@ -486,8 +488,10 @@ public class MaxDevicesHandler extends BaseThingHandler {
 
     private @Nullable Timer thermostatRefreshTimer = null;
     private double thermostatRefeshAdjust = 0.0;
+    private boolean firstRefresh = true;
 
     private static final int INITIAL_REFRESH_PERIOD = 10000;
+    private static final int SECONDARY_REFRESH_PERIOD = 60000;
 
     private synchronized void startThermostatRefresh(int refreshTime)
     {
@@ -526,17 +530,21 @@ public class MaxDevicesHandler extends BaseThingHandler {
                                                 getMeasurementOffset() + thermostatRefeshAdjust,
                                                 getWindowOpenTemperature(),
                                                 getWindowOpenDuration());
-        } else {
+        } else if (firstRefresh) {
             logger.info("Handling initial thermostat refresh on {}, adjust {}, offset {}", rfAddress, thermostatRefeshAdjust, getMeasurementOffset() - thermostatRefeshAdjust);
+            bridgeHandler.startPairingInitialisationSequence(null, rfAddress, MaxCulDevice.getDeviceTypeFromThingTypeUID(getThing().getThingTypeUID()));
+            firstRefresh = false;
+        } else {
+            logger.info("Handling secondary thermostat refresh on {}, adjust {}, offset {}", rfAddress, thermostatRefeshAdjust, getMeasurementOffset() - thermostatRefeshAdjust);
+            bridgeHandler.sendConfigTemperatures(this,
+                                                getComfortTemp(),
+                                                getEcoTemp(), 
+                                                getMaxTemp(),
+                                                getMinTemp(), 
+                                                getMeasurementOffset() + thermostatRefeshAdjust,
+                                                getWindowOpenTemperature(),
+                                                getWindowOpenDuration());
         }
-        bridgeHandler.sendConfigTemperatures(this,
-                                            getComfortTemp(),
-                                            getEcoTemp(), 
-                                            getMaxTemp(),
-                                            getMinTemp(), 
-                                            getMeasurementOffset() + thermostatRefeshAdjust,
-                                            getWindowOpenTemperature(),
-                                            getWindowOpenDuration());
-        startThermostatRefresh(mode != ThermostatControlMode.UNKOWN || getRefreshPeriodMs() == 0 ? getRefreshPeriodMs() : INITIAL_REFRESH_PERIOD);
+        startThermostatRefresh(mode != ThermostatControlMode.UNKOWN || getRefreshPeriodMs() == 0 ? getRefreshPeriodMs() : SECONDARY_REFRESH_PERIOD);
     }
 }

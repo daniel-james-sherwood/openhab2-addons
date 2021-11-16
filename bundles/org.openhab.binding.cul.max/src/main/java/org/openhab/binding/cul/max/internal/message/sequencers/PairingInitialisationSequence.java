@@ -42,6 +42,7 @@ public class PairingInitialisationSequence implements MessageSequencer {
     private enum PairingInitialisationState {
         INITIAL_PING,
         PONG_ACKED,
+        SKIP_INITIAL_PING,
         GROUP_ID_ACKED,
         CONFIG_TEMPS_ACKED,
         SENDING_ASSOCIATIONS,
@@ -74,11 +75,15 @@ public class PairingInitialisationSequence implements MessageSequencer {
     private boolean secondHalf;
 
     public PairingInitialisationSequence(byte groupId, String devAddr, MaxCulMsgHandler messageHandler,
-            MaxDevicesHandler maxDevicesHandler) {
+            MaxDevicesHandler maxDevicesHandler, @Nullable MaxCulDevice deviceType ) {
         this.groupId = groupId;
         this.devAddr = devAddr;
         this.messageHandler = messageHandler;
         this.maxDevicesHandler = maxDevicesHandler;
+        if (deviceType != null) {
+            this.state = PairingInitialisationState.SKIP_INITIAL_PING;
+            this.deviceType = deviceType;
+        }
     }
 
     @Override
@@ -129,6 +134,19 @@ public class PairingInitialisationSequence implements MessageSequencer {
                         }
                     } else {
                         logger.error("Received {} when expecting ACK: {}", msg.msgType, msg.srcAddrStr);
+                    }
+                    break;
+                case SKIP_INITIAL_PING:
+                    if (this.deviceType == MaxCulDevice.PUSH_BUTTON
+                            || this.deviceType == MaxCulDevice.SHUTTER_CONTACT) {
+                        /* for a push button or a shutter contact we're done now */
+                        logger.debug("{} pairing FINISHED: {}", this.deviceType, devAddr);
+                        state = PairingInitialisationState.FINISHED;
+                    } else {
+                        /* send group id information */
+                        logger.debug("Sending GROUP_ID: {}", devAddr);
+                        messageHandler.sendSetGroupId(devAddr, groupId, this);
+                        state = PairingInitialisationState.GROUP_ID_ACKED;
                     }
                     break;
                 case GROUP_ID_ACKED:
