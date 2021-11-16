@@ -12,6 +12,7 @@
  */
 package org.openhab.binding.cul.max.internal.message.sequencers;
 
+import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.cul.max.internal.messages.BaseMsg;
 
@@ -32,7 +33,7 @@ public interface MessageSequencer {
      * @param msg
      *            Latest received message
      */
-    void runSequencer(BaseMsg msg);
+    void runSequencer(@Nullable BaseMsg msg);
 
     /**
      * Handle case where packet is lost

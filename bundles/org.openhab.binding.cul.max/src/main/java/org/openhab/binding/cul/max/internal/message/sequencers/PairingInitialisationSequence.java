@@ -82,7 +82,7 @@ public class PairingInitialisationSequence implements MessageSequencer {
     }
 
     @Override
-    public void runSequencer(BaseMsg msg) {
+    public void runSequencer(@Nullable BaseMsg msg) {
         /*
          * This sequence is taken from observations of activity between the MAX!
          * Cube and a wall thermostat and refined using some experimentation :)
