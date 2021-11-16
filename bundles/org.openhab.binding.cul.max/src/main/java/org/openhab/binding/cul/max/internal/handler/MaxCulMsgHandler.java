@@ -209,7 +209,11 @@ public class MaxCulMsgHandler implements CULListener {
                 int requiredCredit = 2;//msg.isFastSend() ? 0 : 100 + msg.requiredCredit() + 2;
                 this.endOfQueueTransmit = new Date(this.endOfQueueTransmit.getTime() + (requiredCredit * 1000));
                 timer.schedule(task, this.endOfQueueTransmit);
-                this.sendQueue.add(qi);
+                if (msg.msgType != MaxCulMsgType.ACK) {
+                    this.sendQueue.add(qi);
+                } else {
+                    this.sendQueue.addFirst(qi);
+                }
 
                 logger.debug("Added message to queue to be TX'd at {}", this.endOfQueueTransmit.toString());
             }
