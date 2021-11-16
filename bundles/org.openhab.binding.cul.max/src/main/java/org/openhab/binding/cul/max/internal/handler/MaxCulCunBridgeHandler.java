@@ -237,6 +237,18 @@ public class MaxCulCunBridgeHandler extends BaseBridgeHandler implements CULHand
                 .map(MaxDevicesHandler.class::cast).collect(Collectors.toList());
     }
 
+    public void startPairingInitialisationSequence(@Nullable PairPingMsg pkt, @Nullable String srcAddrStr, @Nullable MaxCulDevice deviceType) {
+        logger.debug("Creating pairing sequencer for {}", srcAddrStr);
+        MaxDevicesHandler maxDevicesHandler = childThingHandlers.get(srcAddrStr);
+        if (maxDevicesHandler != null && srcAddrStr != null) {
+            PairingInitialisationSequence ps = new PairingInitialisationSequence(this.groupId,
+                    srcAddrStr, messageHandler, maxDevicesHandler, deviceType);
+            messageHandler.startSequence(ps, pkt);
+        } else {
+            logger.warn("No MaxDevicesHandler found for address {}", pkt.srcAddrStr);
+        }
+    }
+
     public void maxCulMsgReceived(String data, boolean isBroadcast) {
         try {
             logger.debug("Received data from CUL: {}", data);
@@ -254,15 +266,7 @@ public class MaxCulCunBridgeHandler extends BaseBridgeHandler implements CULHand
                      * directly for us
                      */
                     if (((pairMode && isBroadcast) || !isBroadcast)) {
-                        logger.debug("Creating pairing sequencer");
-                        MaxDevicesHandler maxDevicesHandler = childThingHandlers.get(pkt.srcAddrStr);
-                        if (maxDevicesHandler != null) {
-                            PairingInitialisationSequence ps = new PairingInitialisationSequence(this.groupId,
-                                    pkt.srcAddrStr, messageHandler, maxDevicesHandler);
-                            messageHandler.startSequence(ps, pkt);
-                        } else {
-                            logger.warn("No MaxDevicesHandler found for address {}", pkt.srcAddrStr);
-                        }
+                        startPairingInitialisationSequence(pkt, pkt.srcAddrStr, null);
                     }
                 }
             } else {
