@@ -239,6 +239,7 @@ public class PairingInitialisationSequence implements MessageSequencer {
                         if (!ack.getIsNack()) {
                             logger.debug("SENDING_ASSOCIATIONS_ACKED received: {}", this.devAddr);
                             if ((this.deviceType == MaxCulDevice.WALL_THERMOSTAT
+                                    || this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT
                                     || this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT_PLUS)
                                     && !maxDevicesHandler.getWeekProfile().getWeekProfileParts().isEmpty()) {
                                 Iterator<MaxCulWeekProfilePart> weekProfileIter = maxDevicesHandler.getWeekProfile()
