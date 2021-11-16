@@ -93,6 +93,11 @@
 				<description>Set the Thermostat Refersh Period.</description>
 				<advanced>true</advanced>
 			</parameter>
+			<parameter name="weekProfile" type="text" required="false" groupName="device">
+				<label>WeekProfile</label>
+				<description>eg.
+					Mon;17,17-30,21,23-00,17;Tue;17,17-30,21,23-00,17;Wen;17,17-30,21,23-00,17;Thu;17,17-30,21,23-00,17;Fri;17,17-30,21,23-30,17;Sat;17,09-00,21,23-00,17;Sun;17,09-00,21,23-00,17</description>
+			</parameter>
 			<parameter name="associate" type="text" required="false" groupName="associations">
 				<label>Serial Number of associate devices</label>
 				<description>Comma separated serial numbers of associate devices.</description>
