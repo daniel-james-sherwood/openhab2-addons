@@ -206,7 +206,7 @@ public class MaxCulMsgHandler implements CULListener {
                  * margin of 2 credits. x1000 as we accumulate 1 x 10ms credit
                  * every 1000ms
                  */
-                int requiredCredit = msg.isFastSend() ? 0 : 100 + msg.requiredCredit() + 2;
+                int requiredCredit = 2;//msg.isFastSend() ? 0 : 100 + msg.requiredCredit() + 2;
                 this.endOfQueueTransmit = new Date(this.endOfQueueTransmit.getTime() + (requiredCredit * 1000));
                 timer.schedule(task, this.endOfQueueTransmit);
                 this.sendQueue.add(qi);
