@@ -347,6 +347,17 @@ public class MaxCulCunBridgeHandler extends BaseBridgeHandler implements CULHand
         messageHandler.sendReset(rfAddress);
     }
 
+    public void sendConfigTemperatures(MaxDevicesHandler maxDevicesHandler, double comfortTemp, double ecoTemp,
+            double maxTemp, double minTemp, double offset, double windowOpenTemp, double windowOpenTime) {
+        String rfAddress = maxDevicesHandler.getRfAddress();
+        if (rfAddress == null) {
+            logger.warn("Skip sendConfigTemperatures. Thing {} has no rfAddress",
+                    maxDevicesHandler.getThing().getLabel());
+            return;
+        }
+        messageHandler.sendConfigTemperatures(rfAddress, null, comfortTemp, ecoTemp, maxTemp, minTemp, offset, windowOpenTemp, windowOpenTime);
+    }
+
     public void sendSetDisplayActualTemp(MaxDevicesHandler maxDevicesHandler, boolean b) {
         String rfAddress = maxDevicesHandler.getRfAddress();
         if (rfAddress == null) {

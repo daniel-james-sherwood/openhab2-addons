@@ -600,7 +600,7 @@ public class MaxCulMsgHandler implements CULListener {
      * @param windowOpenTemp Window open temperature value
      * @param windowOpenTime Window open time value
      */
-    public void sendConfigTemperatures(String devAddr, MessageSequencer msgSeq, double comfortTemp, double ecoTemp,
+    public void sendConfigTemperatures(String devAddr, @Nullable MessageSequencer msgSeq, double comfortTemp, double ecoTemp,
             double maxTemp, double minTemp, double offset, double windowOpenTemp, double windowOpenTime) {
         ConfigTemperaturesMsg cfgTempMsg = new ConfigTemperaturesMsg(getMessageCount(), (byte) 0, (byte) 0,
                 this.srcAddr, devAddr, comfortTemp, ecoTemp, maxTemp, minTemp, offset, windowOpenTemp, windowOpenTime);

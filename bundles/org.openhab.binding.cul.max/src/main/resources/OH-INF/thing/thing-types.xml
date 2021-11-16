@@ -87,6 +87,12 @@
 				<description>Set the Thermostat Window Open Duration.</description>
 				<advanced>true</advanced>
 			</parameter>
+			<parameter name="refreshPeriod" type="integer" min="0" max="3600" step="5" required="false"
+				groupName="device">
+				<label>Refresh Period</label>
+				<description>Set the Thermostat Refersh Period.</description>
+				<advanced>true</advanced>
+			</parameter>
 			<parameter name="associate" type="text" required="false" groupName="associations">
 				<label>Serial Number of associate devices</label>
 				<description>Comma separated serial numbers of associate devices.</description>
@@ -195,6 +201,12 @@
 				groupName="device">
 				<label>Window Open Duration</label>
 				<description>Set the Thermostat Window Open Duration.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="refreshPeriod" type="integer" min="0" max="3600" step="5" required="false"
+				groupName="device">
+				<label>Refresh Period</label>
+				<description>Set the Thermostat Refersh Period.</description>
 				<advanced>true</advanced>
 			</parameter>
 			<parameter name="weekProfile" type="text" required="false" groupName="device">
@@ -309,6 +321,12 @@
 				groupName="device">
 				<label>Window Open Duration</label>
 				<description>Set the Thermostat Window Open Duration.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="refreshPeriod" type="integer" min="0" max="3600" step="5" required="false"
+				groupName="device">
+				<label>Refresh Period</label>
+				<description>Set the Thermostat Refersh Period.</description>
 				<advanced>true</advanced>
 			</parameter>
 			<parameter name="weekProfile" type="text" required="false" groupName="device">
