@@ -430,7 +430,7 @@ public class MaxCulMsgHandler implements CULListener {
         logger.error("Received CUL Error", e);
     }
 
-    public void startSequence(MessageSequencer ps, BaseMsg msg) {
+    public void startSequence(MessageSequencer ps, @Nullable BaseMsg msg) {
         logger.debug("Starting sequence");
         ps.runSequencer(msg);
     }

@@ -15,6 +15,7 @@ package org.openhab.binding.cul.max.internal.message.sequencers;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
+import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.cul.max.internal.handler.MaxCulMsgHandler;
 import org.openhab.binding.cul.max.internal.messages.AckMsg;
@@ -71,7 +72,7 @@ public class TimeUpdateRequestSequence implements MessageSequencer {
     }
 
     @Override
-    public void runSequencer(BaseMsg msg) {
+    public void runSequencer(@Nullable BaseMsg msg) {
         pktLostCount = 0;
         switch (state) {
             case RESPOND_TO_REQUEST:
