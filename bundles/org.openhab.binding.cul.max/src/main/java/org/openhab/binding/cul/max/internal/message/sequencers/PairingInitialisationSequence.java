@@ -136,6 +136,7 @@ public class PairingInitialisationSequence implements MessageSequencer {
                         AckMsg ack = new AckMsg(msg.rawMsg);
                         if (!ack.getIsNack() && (this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT
                                 || this.deviceType == MaxCulDevice.WALL_THERMOSTAT
+                                || this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT
                                 || this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT_PLUS)) {
                             logger.debug("GROUP_ID_ACKED received: {}", msg.srcAddrStr);
                             // send temps for comfort/eco etc
