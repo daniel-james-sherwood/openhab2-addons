@@ -93,6 +93,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
 
     @Override
     public void initialize() {
+        disposed = false;
         final String thingVersion = this.thing.getProperties().get(MaxCulBindingConstants.PROPERTY_THING_VERSION);
         if (!MaxCulBindingConstants.CURRENT_THING_VERSION.equals(thingVersion)) {
             final Map<String, String> newProperties = new HashMap<>(thing.getProperties());
@@ -153,9 +154,11 @@ public class MaxDevicesHandler extends BaseThingHandler {
         }
     }
 
+    public boolean disposed = false;
     @Override
     public void dispose() 
     {
+        disposed = true;
         startThermostatRefresh(0);
     }
 
@@ -442,7 +445,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
     }
 
     public int getRefreshPeriodMs() {
-        return refreshPeriod * 1000;
+        return getRefreshPeriod() * 1000;
     }
 
     public double getMeasurementOffset() {
@@ -509,12 +512,21 @@ public class MaxDevicesHandler extends BaseThingHandler {
             thermostatRefreshTimer = new Timer();
             thermostatRefreshTimer.schedule(new ThermostatRefreshTask(this), refreshTime);
             logger.info("Starting thermostat refresh timer on {} for {}", rfAddress, refreshTime);
+        } else {
+            firstRefresh = true;
         }
     }
 
     private synchronized void handleThermostatRefresh()
     {
-        if (mode != ThermostatControlMode.UNKOWN) {
+        if (disposed) {
+            return;
+        }
+        if (firstRefresh) {
+            logger.info("Handling initial thermostat refresh on {}, adjust {}, offset {}", rfAddress, thermostatRefeshAdjust, getMeasurementOffset() - thermostatRefeshAdjust);
+            bridgeHandler.startPairingInitialisationSequence(null, rfAddress, MaxCulDevice.getDeviceTypeFromThingTypeUID(getThing().getThingTypeUID()));
+            firstRefresh = false;
+        } else if (mode != ThermostatControlMode.UNKOWN) {
             if (thermostatRefeshAdjust == 0.0) {
                 thermostatRefeshAdjust = 0.5;
             } else {
@@ -530,10 +542,6 @@ public class MaxDevicesHandler extends BaseThingHandler {
                                                 getMeasurementOffset() + thermostatRefeshAdjust,
                                                 getWindowOpenTemperature(),
                                                 getWindowOpenDuration());
-        } else if (firstRefresh) {
-            logger.info("Handling initial thermostat refresh on {}, adjust {}, offset {}", rfAddress, thermostatRefeshAdjust, getMeasurementOffset() - thermostatRefeshAdjust);
-            bridgeHandler.startPairingInitialisationSequence(null, rfAddress, MaxCulDevice.getDeviceTypeFromThingTypeUID(getThing().getThingTypeUID()));
-            firstRefresh = false;
         } else {
             logger.info("Handling secondary thermostat refresh on {}, adjust {}, offset {}", rfAddress, thermostatRefeshAdjust, getMeasurementOffset() - thermostatRefeshAdjust);
             bridgeHandler.sendConfigTemperatures(this,
