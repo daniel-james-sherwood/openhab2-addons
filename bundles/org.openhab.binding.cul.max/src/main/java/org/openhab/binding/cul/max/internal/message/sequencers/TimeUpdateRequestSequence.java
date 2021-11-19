@@ -138,9 +138,4 @@ public class TimeUpdateRequestSequence implements MessageSequencer {
     public boolean isComplete() {
         return (state == TimeUpdateRequestState.FINISHED);
     }
-
-    @Override
-    public boolean useFastSend() {
-        return true;
-    }
 }

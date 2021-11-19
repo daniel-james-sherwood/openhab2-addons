@@ -41,44 +41,34 @@ public class MaxCulMsgHandler implements CULListener {
 
     private final Logger logger = LoggerFactory.getLogger(MaxCulMsgHandler.class);
 
-    class SenderQueueItem {
-        BaseMsg msg;
-        @Nullable
-        Date expiry;
-        int retryCount = 0;
-
-        public SenderQueueItem(BaseMsg msg) {
-            this.msg = msg;
-        }
-    }
-
-    private Date lastTransmit = new Date();
-    private Date endOfQueueTransmit;
-
     private int msgCount = 0;
     private MaxCulCunBridgeHandler cul;
     private String srcAddr;
-    private HashMap<Byte, MessageSequencer> sequenceRegister;
-    private LinkedList<SenderQueueItem> sendQueue;
-    private ConcurrentHashMap<Byte, SenderQueueItem> pendingAckQueue;
-
-    private Map<SenderQueueItem, Timer> sendQueueTimers = new HashMap<SenderQueueItem, Timer>();
+    private LinkedList<BaseMsg> sendQueue;
+    private @Nullable BaseMsg sendItem = null;
+    public String lastItemDstAddrStr = "";
+    private int sendRetry = 0;
+    private @Nullable Timer sendAckTimer = null;
 
     private final Set<String> rfAddressesToSpyOn;
 
     private boolean listenMode = false;
 
-    public static final int MESSAGE_EXPIRY_PERIOD = 10000;
+    public static final int MESSAGE_EXPIRY_PERIOD_FAST = 500;
+    public static final int MESSAGE_EXPIRY_PERIOD_SLOw = 1500;
+    public static final int MESSAGE_ACK_PERIOD = 100;
+    public static final int MESSAGE_RETRY_COUNT = 4;
 
     public MaxCulMsgHandler(String srcAddr, Set<String> rfAddressesToSpyOn, MaxCulCunBridgeHandler cul) {
         this.srcAddr = srcAddr;
-        this.sequenceRegister = new HashMap<Byte, MessageSequencer>();
-        this.sendQueue = new LinkedList<SenderQueueItem>();
-        this.pendingAckQueue = new ConcurrentHashMap<Byte, SenderQueueItem>();
-        this.lastTransmit = new Date(); /* init as now */
-        this.endOfQueueTransmit = this.lastTransmit;
+        this.sendQueue = new LinkedList<BaseMsg>();
         this.rfAddressesToSpyOn = rfAddressesToSpyOn;
         this.cul = cul;
+    }
+
+    private boolean disposed = false;
+    public void dispose() {
+        disposed = true;
     }
 
     private byte getMessageCount() {
@@ -86,6 +76,13 @@ public class MaxCulMsgHandler implements CULListener {
         this.msgCount &= 0xFF;
         return (byte) this.msgCount;
     }
+
+    private enum SendMsgResult {
+        ACK_SENT,
+        ACK_RECEIVED,
+        NACK_RECEIVED,
+        ACK_TIMEOUT,
+    };
 
     private boolean enoughCredit(int requiredCredit, boolean fastSend) {
         int availableCredit = getCreditStatus();
@@ -100,51 +97,113 @@ public class MaxCulMsgHandler implements CULListener {
         return cul.getCredit10ms();
     }
 
-    private synchronized void transmitMessage(BaseMsg data, @Nullable SenderQueueItem queueItem) {
+    private synchronized void transmitMessage(@Nullable BaseMsg data) {
+        if (disposed) {
+            return;
+        }
+        boolean fastSend = lastItemDstAddrStr.equals(data.dstAddrStr);
+        logger.trace("transmitMessage(): Sending {} message to {} in {} mode attempt {}", data.msgType, data.dstAddrStr, fastSend ? "fast" : "slow", sendRetry+1);
         try {
-            cul.send(data.rawMsg);
+            String rawMsg = fastSend ? data.rawMsg.replace("Zs", "Zf") : data.rawMsg.replace("Zf", "Zs");
+            cul.send(rawMsg);
         } catch (CULCommunicationException e) {
-            logger.error("Unable to send CUL message {} because: {}", data, e.getMessage());
-        }
-        /* update surplus credit value */
-        boolean fastSend = false;
-        if (data.isPartOfSequence()) {
-            MessageSequencer messageSequencer = data.getMessageSequencer();
-            if (messageSequencer != null) {
-                fastSend = messageSequencer.useFastSend();
-            }
-        }
-        enoughCredit(data.requiredCredit(), fastSend);
-        this.lastTransmit = new Date();
-        if (this.endOfQueueTransmit.before(this.lastTransmit)) {
-            /* hit a time after the queue finished tx'ing */
-            this.endOfQueueTransmit = this.lastTransmit;
+            logger.error("transmitMessage(): Sending {} message to {} failed: {}", data.msgType, data.dstAddrStr, e.getMessage());
         }
 
         if (data.msgType != MaxCulMsgType.ACK) {
             /* awaiting ack now */
-            SenderQueueItem qi = queueItem;
-            if (qi == null) {
-                qi = new SenderQueueItem(data);
+            if (sendAckTimer != null) {
+                sendAckTimer.cancel();
+                sendAckTimer = null;
             }
-            qi.expiry = new Date(this.lastTransmit.getTime() + MESSAGE_EXPIRY_PERIOD);
-
-            this.pendingAckQueue.put(qi.msg.msgCount, qi);
-
-            /* schedule a check of pending acks */
-            TimerTask ackCheckTask = new TimerTask() {
+            sendAckTimer = new Timer();
+            sendAckTimer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    checkPendingAcks();
+                    /* retry expired message - or abort */
+                    handleMessageComplete(SendMsgResult.ACK_TIMEOUT, null);
                 }
-            };
-            Timer timer = new Timer();
-            timer.schedule(ackCheckTask, qi.expiry);
+            }, fastSend ? MESSAGE_EXPIRY_PERIOD_FAST : MESSAGE_EXPIRY_PERIOD_SLOw);
+        } else {
+            if (sendAckTimer != null) {
+                sendAckTimer.cancel();
+                sendAckTimer = null;
+            }
+            sendAckTimer = new Timer();
+            sendAckTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    /* process next message after Ack */
+                    handleMessageComplete(SendMsgResult.ACK_SENT, null);
+                }
+            }, MESSAGE_ACK_PERIOD);
         }
     }
 
-    public void sendMessage(BaseMsg msg) {
-        sendMessage(msg, null);
+    private boolean runSeq = false;
+    private synchronized boolean handleMessageComplete(SendMsgResult result, @Nullable BaseMsg msg) {
+        if (sendAckTimer != null) {
+            sendAckTimer.cancel();
+            sendAckTimer = null;
+        }
+        if (disposed) {
+            return false;
+        }
+
+        boolean passToBinding = true;
+        lastItemDstAddrStr = msg == null ? "" : msg.srcAddrStr;
+        
+        if (sendItem.isPartOfSequence()) {
+            BaseMsg thisItem = sendItem;
+            passToBinding = false;
+            sendItem = null;
+            runSeq = true;
+            if (msg != null) {
+                logger.trace("handleMessageComplete(): Sending {} message to {} complete, CONTINUE SEQUENCE: {}", thisItem.msgType, thisItem.dstAddrStr, result);
+                thisItem.getMessageSequencer().runSequencer(msg);
+            } else {
+                logger.error("handleMessageComplete(): Sending {} message to {} failed, RETRY SEQUENCE: {}", thisItem.msgType, thisItem.dstAddrStr, result);
+                thisItem.getMessageSequencer().packetLost(thisItem);
+            }
+            runSeq = false;
+        } else {
+            if (result != SendMsgResult.NACK_RECEIVED && result != SendMsgResult.ACK_TIMEOUT ) {
+                logger.trace("handleMessageComplete(): Sending {} message to {} complete: {}", sendItem.msgType, sendItem.dstAddrStr, result);
+            } else {
+                if (sendRetry < MESSAGE_RETRY_COUNT) {
+                    sendRetry++;
+                    logger.error("handleMessageComplete(): Sending {} message to {} failed attempt {}, RETRY: {}", sendItem.msgType, sendItem.dstAddrStr, sendRetry, result);
+                    transmitMessage(sendItem);
+                    return passToBinding;
+                }
+                logger.error("handleMessageComplete(): Sending {} message to {} failed attempt {}, ABORT: {}", sendItem.msgType, sendItem.dstAddrStr, sendRetry, result);
+            }
+            sendItem = null;
+        }
+
+        kickSendQueue();
+        return passToBinding;
+    }
+
+    private synchronized void kickSendQueue() {
+        if (disposed) {
+            return;
+        }
+
+        if (sendItem != null) {
+            logger.trace("kickSendQueue(): Sending {} message to {} in progress: {} items in queue", sendItem.msgType, sendItem.dstAddrStr, sendQueue.size());
+            return;
+        }
+
+        if (sendQueue.isEmpty()) {
+            lastItemDstAddrStr = "";
+            logger.trace("kickSendQueue(): Queue empty");
+        }
+
+        sendItem = sendQueue.remove();
+        sendRetry = 0;
+        logger.trace("kickSendQueue(): Sending {} message to {} start: {} items in queue", sendItem.msgType, sendItem.dstAddrStr, sendQueue.size());
+        transmitMessage(sendItem);
     }
 
     /**
@@ -153,117 +212,23 @@ public class MaxCulMsgHandler implements CULListener {
      * @param msg Base message to send
      * @param queueItem queue item (used for retransmission)
      */
-    private synchronized void sendMessage(BaseMsg msg, @Nullable SenderQueueItem queueItem) {
-        Timer timer = null;
+    public synchronized void sendMessage(BaseMsg msg) {
+        if (disposed) {
+            return;
+        }
 
-        if (msg.readyToSend()) {
-            if (enoughCredit(msg.requiredCredit(), msg.isFastSend()) && this.sendQueue.isEmpty() && this.pendingAckQueue.isEmpty()) {
-                /*
-                 * send message as we have enough credit and nothing is on the
-                 * queue waiting
-                 */
-                logger.debug("Sending message immediately. Message is {} => {}", msg.msgType, msg.rawMsg);
-                transmitMessage(msg, queueItem);
-                logger.debug("Credit required {}", msg.requiredCredit());
-            } else {
-                /*
-                 * message is going on the queue - this means that the device
-                 * may well go to standby before it receives it so change into
-                 * long slow send format with big preamble
-                 */
-                msg.setFastSend(false);
-                /*
-                 * don't have enough credit or there are messages ahead of us so
-                 * queue up the item and schedule a task to process it
-                 */
-                SenderQueueItem qi = queueItem;
-                if (qi == null) {
-                    qi = new SenderQueueItem(msg);
-                }
-
-                TimerTask task = new TimerTask() {
-                    @Override
-                    public void run() {
-                        SenderQueueItem topItem = sendQueue.remove();
-                        logger.debug("Checking credit");
-                        if (enoughCredit(topItem.msg.requiredCredit(), topItem.msg.isFastSend())) {
-                            logger.debug("Sending item from queue. Message is {} => {}", topItem.msg.msgType,
-                                    topItem.msg.rawMsg);
-                            if (topItem.msg.msgType == MaxCulMsgType.TIME_INFO) {
-                                ((TimeInfoMsg) topItem.msg).updateTime();
-                            }
-                            transmitMessage(topItem.msg, topItem);
-                        } else {
-                            logger.error("Not enough credit after waiting. This is bad. Queued command is discarded");
-                        }
-                    }
-                };
-
-                timer = new Timer();
-                sendQueueTimers.put(qi, timer);
-                /*
-                 * calculate when we want to TX this item in the queue, with a
-                 * margin of 2 credits. x1000 as we accumulate 1 x 10ms credit
-                 * every 1000ms
-                 */
-                int requiredCredit = 2;//msg.isFastSend() ? 0 : 100 + msg.requiredCredit() + 2;
-                this.endOfQueueTransmit = new Date(this.endOfQueueTransmit.getTime() + (requiredCredit * 1000));
-                timer.schedule(task, this.endOfQueueTransmit);
-                if (msg.msgType != MaxCulMsgType.ACK) {
-                    this.sendQueue.add(qi);
-                } else {
-                    this.sendQueue.addFirst(qi);
-                }
-
-                logger.debug("Added message to queue to be TX'd at {}", this.endOfQueueTransmit.toString());
-            }
-
-            if (msg.isPartOfSequence()) {
-                /* add to sequence register if part of a sequence */
-                logger.debug("Message {} is part of sequence. Adding to register.", msg.msgCount);
-                sequenceRegister.put(msg.msgCount, msg.getMessageSequencer());
-            }
+        if (msg.msgType != MaxCulMsgType.ACK && !runSeq) {
+            sendQueue.add(msg);
+            logger.trace("sendMessage(): Adding {} message to {} to tail of queue: {} items in queue", msg.msgType, msg.dstAddrStr, sendQueue.size());
         } else {
-            logger.error("Tried to send a message that wasn't ready!");
+            sendQueue.addFirst(msg);
+            logger.trace("sendMessage(): Adding {} message to {} to head of queue: {} items in queue", msg.msgType, msg.dstAddrStr, sendQueue.size());
+        }
+        if (!runSeq) {
+            kickSendQueue();
         }
     }
-
-    /**
-     * Check the ACK queue for any pending acks that have expired
-     */
-    public void checkPendingAcks() {
-        Date now = new Date();
-
-        for (SenderQueueItem qi : pendingAckQueue.values()) {
-            if (now.after(qi.expiry)) {
-                logger.error("Packet {} ({}) lost - timeout", qi.msg.msgCount, qi.msg.msgType);
-                pendingAckQueue.remove(qi.msg.msgCount); // remove from ACK
-                // queue
-                if (sequenceRegister.containsKey(qi.msg.msgCount)) {
-                    /* message sequencer handles failed packet */
-                    MessageSequencer msgSeq = sequenceRegister.get(qi.msg.msgCount);
-                    if (msgSeq != null) {
-                        sequenceRegister.remove(qi.msg.msgCount); // remove from
-                        // register
-                        // first as
-                        // packetLost
-                        // could add it
-                        // again
-                        msgSeq.packetLost(qi.msg);
-                    }
-                } else if (qi.retryCount < 3) {
-                    /* retransmit */
-                    qi.retryCount++;
-                    logger.debug("Retransmitting packet {} attempt {}", qi.msg.msgCount, qi.retryCount);
-                    sendMessage(qi.msg, qi);
-                } else {
-                    logger.error("Transmission of packet {} failed 3 times, message was: {} to address {} => {}",
-                            qi.msg.msgCount, qi.msg.msgType, qi.msg.dstAddrStr, qi.msg.rawMsg);
-                }
-            }
-        }
-    }
-
+    
     private void listenModeHandler(String data) {
         try {
             switch (BaseMsg.getMsgType(data)) {
@@ -345,17 +310,18 @@ public class MaxCulMsgHandler implements CULListener {
 
                         AckMsg msg = new AckMsg(data);
 
-                        if (pendingAckQueue.containsKey(msg.msgCount) && msg.dstAddrStr.compareTo(srcAddr) == 0) {
-                            SenderQueueItem qi = pendingAckQueue.remove(msg.msgCount);
+                        if ((sendItem.msgCount == msg.msgCount) && msg.dstAddrStr.compareTo(srcAddr) == 0) {
                             /* verify ACK */
-                            if (qi != null && (qi.msg.dstAddrStr.equalsIgnoreCase(msg.srcAddrStr))
-                                    && (qi.msg.srcAddrStr.equalsIgnoreCase(msg.dstAddrStr))) {
+                            if ((sendItem.dstAddrStr.equalsIgnoreCase(msg.srcAddrStr))
+                                    && (sendItem.srcAddrStr.equalsIgnoreCase(msg.dstAddrStr))) {
                                 if (msg.getIsNack()) {
                                     /* NAK'd! */
                                     // TODO resend?
                                     logger.error("Message was NAK'd, packet lost");
+                                    handleMessageComplete(SendMsgResult.NACK_RECEIVED, msg);
                                 } else {
                                     logger.debug("Message {} ACK'd ok!", msg.msgCount);
+                                    handleMessageComplete(SendMsgResult.ACK_RECEIVED, msg);
                                     try {
                                         forwardAsBroadcastIfSpyIsEnabled(data);
                                     } catch (Exception e1) {
@@ -367,21 +333,6 @@ public class MaxCulMsgHandler implements CULListener {
                             logger.info("Got ACK for message {} but it wasn't in the queue", msg.msgCount);
                         }
 
-                    }
-                    BaseMsg baseMsg = new BaseMsg(data);
-                    if (sequenceRegister.containsKey(baseMsg.msgCount)) {
-                        passToBinding = false;
-                        /*
-                         * message found in sequence register, so it will be handled
-                         * by the sequence
-                         */
-                        BaseMsg bMsg = baseMsg;
-                        logger.debug("Message {} is part of sequence. Running next step in sequence.", bMsg.msgCount);
-                        MessageSequencer messageSequencer = sequenceRegister.get(bMsg.msgCount);
-                        if (messageSequencer != null) {
-                            messageSequencer.runSequencer(bMsg);
-                            sequenceRegister.remove(bMsg.msgCount);
-                        }
                     }
 
                     if (passToBinding) {
@@ -482,18 +433,6 @@ public class MaxCulMsgHandler implements CULListener {
     }
 
     /**
-     * Send time information to device in fast mode
-     *
-     * @param dstAddr Address of device to respond to
-     * @param tzStr Time Zone String
-     */
-    public void sendTimeInfoFast(String dstAddr, String tzStr) {
-        TimeInfoMsg msg = new TimeInfoMsg(getMessageCount(), (byte) 0x0, (byte) 0, this.srcAddr, dstAddr, tzStr);
-        msg.setFastSend(true);
-        sendMessage(msg);
-    }
-
-    /**
      * Send time information to device that has requested it
      *
      * @param dstAddr Address of device to respond to
@@ -523,7 +462,6 @@ public class MaxCulMsgHandler implements CULListener {
      */
     public void sendAck(BaseMsg msg) {
         AckMsg ackMsg = new AckMsg(msg.msgCount, (byte) 0x0, msg.groupid, this.srcAddr, msg.srcAddrStr, false);
-        ackMsg.setFastSend(true); // all ACKs are sent to waiting device.
         sendMessage(ackMsg);
     }
 
@@ -534,7 +472,6 @@ public class MaxCulMsgHandler implements CULListener {
      */
     public void sendNack(BaseMsg msg) {
         AckMsg nackMsg = new AckMsg(msg.msgCount, (byte) 0x0, msg.groupid, this.srcAddr, msg.srcAddrStr, false);
-        nackMsg.setFastSend(true); // all NACKs are sent to waiting device.
         sendMessage(nackMsg);
     }
 

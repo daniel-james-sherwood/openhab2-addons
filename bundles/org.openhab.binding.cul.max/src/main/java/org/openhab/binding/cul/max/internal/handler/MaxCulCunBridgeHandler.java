@@ -96,6 +96,12 @@ public class MaxCulCunBridgeHandler extends BaseBridgeHandler implements CULHand
     }
 
     @Override
+    public void dispose() {
+        logger.trace("ThingHandler dispose: {}", getThing().getLabel());
+        messageHandler.dispose();
+    }
+
+    @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         if (ThingStatus.ONLINE != thing.getStatus()) {
             return;
@@ -266,6 +272,7 @@ public class MaxCulCunBridgeHandler extends BaseBridgeHandler implements CULHand
                      * directly for us
                      */
                     if (((pairMode && isBroadcast) || !isBroadcast)) {
+                        messageHandler.lastItemDstAddrStr = pkt.srcAddrStr;
                         startPairingInitialisationSequence(pkt, pkt.srcAddrStr, null);
                     }
                 }

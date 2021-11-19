@@ -63,7 +63,6 @@ public class PairingInitialisationSequence implements MessageSequencer {
     private int pktLostCount = 0;
     private MaxCulDevice deviceType = MaxCulDevice.UNKNOWN;
     private MaxDevicesHandler maxDevicesHandler;
-    private boolean useFast = true;
 
     /* place to keep stuff when going through ReTx */
     private @Nullable BaseMsg reTxMsg;
@@ -376,7 +375,6 @@ public class PairingInitialisationSequence implements MessageSequencer {
                             state = PairingInitialisationState.FINISHED;
                         } else if (!ack.getIsNack()) {
                             logger.debug("Attempt retransmission - resuming: {}", ack.srcAddrStr);
-                            this.useFast = true;
                             messageHandler.sendMessage(reTxMsg);
                             state = reTxState; // resume back to previous state
                         } else {
@@ -408,7 +406,6 @@ public class PairingInitialisationSequence implements MessageSequencer {
         if (pktLostCount < 3) {
             /* send WAKEUP to allow us to send messages in fast mode */
             logger.debug("Attempt retransmission - first wakeup device");
-            this.useFast = false;
             messageHandler.sendWakeup(msg.dstAddrStr, this);
             /* save current state, but avoid overwriting on second attempt */
             if (this.state != PairingInitialisationState.RETX_WAKEUP_ACK) {
@@ -420,11 +417,5 @@ public class PairingInitialisationSequence implements MessageSequencer {
             logger.error("Lost {} packets. Ending Sequence in state {}", pktLostCount, this.state);
             state = PairingInitialisationState.FINISHED;
         }
-    }
-
-    @Override
-    public boolean useFastSend() {
-        // only use fast send when not sending the wakup msg in PONG_ACKED
-        return (useFast);
     }
 }
