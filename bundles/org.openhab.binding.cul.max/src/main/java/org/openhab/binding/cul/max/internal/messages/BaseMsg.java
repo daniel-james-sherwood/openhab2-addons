@@ -43,8 +43,6 @@ public class BaseMsg {
     public byte[] payload = new byte[0];
     public String rawMsg;
 
-    private boolean fastSend = false;
-
     private boolean flgReadyToSend = false;
 
     private final Logger logger = LoggerFactory.getLogger(BaseMsg.class);
@@ -225,11 +223,7 @@ public class BaseMsg {
             this.flgReadyToSend = false;
             logger.error("Unable to build raw message. Length is not correct");
         }
-        if (isFastSend()) {
-            sb.insert(0, String.format("Zf%02X", len));
-        } else {
-            sb.insert(0, String.format("Zs%02X", len));
-        }
+        sb.insert(0, String.format("Zs%02X", len));
 
         this.len = len;
         this.rawMsg = sb.toString();
@@ -374,9 +368,6 @@ public class BaseMsg {
      */
     public void setMessageSequencer(@Nullable MessageSequencer msgSeq) {
         msgSequencer = msgSeq;
-        if (msgSeq != null) {
-            this.setFastSend(msgSeq.useFastSend());
-        }
     }
 
     /**
@@ -400,11 +391,10 @@ public class BaseMsg {
     /**
      * Set fast send flag manually
      *
-     * @param useFastSend
+     * @param fastSend
      *            value to set fast send flag to
      */
-    public void setFastSend(boolean useFastSend) {
-        this.fastSend = useFastSend;
+    public void setFastSend(boolean fastSend) {
         if (this.flgReadyToSend) {
             logger.debug("Reconfiguring message to {}", (fastSend ? "FAST" : "SLOW"));
             if (fastSend) {
@@ -415,14 +405,5 @@ public class BaseMsg {
                 // with slow
             }
         }
-    }
-
-    /**
-     * Get fast send status
-     *
-     * @return true if message is fastSend
-     */
-    public boolean isFastSend() {
-        return fastSend;
     }
 }
