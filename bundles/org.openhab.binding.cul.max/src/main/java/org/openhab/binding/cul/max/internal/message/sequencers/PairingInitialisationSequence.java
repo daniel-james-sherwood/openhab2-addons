@@ -21,6 +21,7 @@ import org.openhab.binding.cul.max.internal.handler.MaxCulMsgHandler;
 import org.openhab.binding.cul.max.internal.handler.MaxDevicesHandler;
 import org.openhab.binding.cul.max.internal.messages.AckMsg;
 import org.openhab.binding.cul.max.internal.messages.BaseMsg;
+import org.openhab.binding.cul.max.internal.messages.ConfigValveMsg;
 import org.openhab.binding.cul.max.internal.messages.MaxCulWeekProfilePart;
 import org.openhab.binding.cul.max.internal.messages.PairPingMsg;
 import org.openhab.binding.cul.max.internal.messages.constants.MaxCulDevice;
@@ -45,6 +46,7 @@ public class PairingInitialisationSequence implements MessageSequencer {
         SKIP_INITIAL_PING,
         GROUP_ID_ACKED,
         CONFIG_TEMPS_ACKED,
+        CONFIG_VALVE_ACKED,
         SENDING_ASSOCIATIONS,
         SENDING_ASSOCIATIONS_ACKED,
         SENDING_WEEK_PROFILE,
@@ -175,8 +177,31 @@ public class PairingInitialisationSequence implements MessageSequencer {
                 case CONFIG_TEMPS_ACKED:
                     if (msg.msgType == MaxCulMsgType.ACK) {
                         AckMsg ack = new AckMsg(msg.rawMsg);
+                        if (!ack.getIsNack() && (this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT
+                                || this.deviceType == MaxCulDevice.WALL_THERMOSTAT
+                                || this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT
+                                || this.deviceType == MaxCulDevice.RADIATOR_THERMOSTAT_PLUS)) {
+                            logger.debug("CONFIG_TEMPS_ACKED received: {}", msg.srcAddrStr);
+                            // send temps for comfort/eco etc
+                            logger.debug("sendConfigValve: {}", devAddr);
+                            messageHandler.sendConfigValve(devAddr, this, maxDevicesHandler.getBoostDuration(),
+                                    maxDevicesHandler.getBoostValvePosition(), maxDevicesHandler.getDecalcificationDay(),
+                                    maxDevicesHandler.getDecalcificationHour(), maxDevicesHandler.getMaxValveSetting(),
+                                    maxDevicesHandler.getValveOffset());
+                            state = PairingInitialisationState.CONFIG_VALVE_ACKED;
+                        } else {
+                            logger.error("SET_GROUP_ID was nacked. Ending sequence: {}", msg.srcAddrStr);
+                            state = PairingInitialisationState.FINISHED;
+                        }
+                    } else {
+                        logger.error("Received {} when expecting ACK: {}", msg.msgType, msg.srcAddrStr);
+                    }
+                    break;
+                case CONFIG_VALVE_ACKED:
+                    if (msg.msgType == MaxCulMsgType.ACK) {
+                        AckMsg ack = new AckMsg(msg.rawMsg);
                         if (!ack.getIsNack()) {
-                            logger.debug("CONFIG_TEMPS_ACKED received: {}", this.devAddr);
+                            logger.debug("CONFIG_VALVE_ACKED received: {}", this.devAddr);
                             /*
                              * associate device with us so we get updates - we pretend
                              * to be the MAX! Cube
@@ -267,7 +292,7 @@ public class PairingInitialisationSequence implements MessageSequencer {
                                 if (weekProfileIter.hasNext()) {
                                     MaxCulWeekProfilePart currentWeekProfilePart = weekProfileIter.next();
                                     this.currentWeekProfilePart = currentWeekProfilePart;
-                                    logger.debug("sendWeekProfile Part 1: {}", devAddr);
+                                    logger.debug("sendWeekProfile {} Part 1: {}", currentWeekProfilePart.getDay(), devAddr);
                                     messageHandler.sendWeekProfile(devAddr, this, currentWeekProfilePart, secondHalf);
                                     state = PairingInitialisationState.SENDING_WEEK_PROFILE;
                                 } else {
@@ -295,9 +320,9 @@ public class PairingInitialisationSequence implements MessageSequencer {
                             Iterator<MaxCulWeekProfilePart> weekProfileIter = this.weekProfileIter;
                             if (currentWeekProfilePart != null && weekProfileIter != null) {
                                 // And then the remaining 6
-                                if (!secondHalf && currentWeekProfilePart.getControlPoints().size() > 7) {
+                                if (!secondHalf && currentWeekProfilePart.getControlPoints().size() >= 7) {
                                     secondHalf = true;
-                                    logger.debug("sendWeekProfile Part 1+: {}", devAddr);
+                                    logger.debug("sendWeekProfile {} Part 1+: {}", currentWeekProfilePart.getDay(), devAddr);
                                     messageHandler.sendWeekProfile(devAddr, this, currentWeekProfilePart, secondHalf);
                                     /*
                                      * if it's the last week profile part message then wait for
@@ -316,13 +341,14 @@ public class PairingInitialisationSequence implements MessageSequencer {
                                 secondHalf = false;
                                 if (weekProfileIter.hasNext()) {
                                     currentWeekProfilePart = weekProfileIter.next();
-                                    logger.debug("sendWeekProfile Part 1: {}", devAddr);
+                                    this.currentWeekProfilePart = currentWeekProfilePart;
+                                    logger.debug("sendWeekProfile {} Part 1: {}", currentWeekProfilePart.getDay(), devAddr);
                                     messageHandler.sendWeekProfile(devAddr, this, currentWeekProfilePart, secondHalf);
                                     /*
                                      * if it's the last week profile part message then wait for
                                      * last ACK
                                      */
-                                    if (weekProfileIter.hasNext()) {
+                                    if ( currentWeekProfilePart.getControlPoints().size() >= 7 || weekProfileIter.hasNext()) {
                                         state = PairingInitialisationState.SENDING_WEEK_PROFILE;
                                     } else {
                                         state = PairingInitialisationState.SENDING_WEEK_PROFILE_ACKED;

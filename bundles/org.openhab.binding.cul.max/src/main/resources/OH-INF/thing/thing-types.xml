@@ -87,6 +87,39 @@
 				<description>Set the Thermostat Window Open Duration.</description>
 				<advanced>true</advanced>
 			</parameter>
+			<parameter name="maxValveSetting" type="integer" min="0" max="100" required="false"
+				groupName="device">
+				<label>Max Value Setting</label>
+				<description>Set the Thermostat Max Valve Setting.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="valveOffset" type="integer" min="0" max="100" required="false"
+				groupName="device">
+				<label>Value Offset</label>
+				<description>Set the Thermostat Valve Offset.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="boostValvePosition" type="integer" min="0" max="100" step="5" required="false"
+				groupName="device">
+				<label>Boost Value Position</label>
+				<description>Set the Boost Value Position.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="boostDuration" type="integer" required="false"
+				groupName="device">
+				<label>Boost Duration</label>
+				<description>Set the Boost Duration.</description>
+				<options>
+					<option value="5">5</option>
+					<option value="10">10</option>
+					<option value="15">15</option>
+					<option value="20">20</option>
+					<option value="25">25</option>
+					<option value="30">30</option>
+					<option value="60">60</option>
+				</options>
+				<advanced>true</advanced>
+			</parameter>
 			<parameter name="refreshPeriod" type="integer" min="0" max="3600" step="5" required="false"
 				groupName="device">
 				<label>Refresh Period</label>
@@ -208,6 +241,39 @@
 				<description>Set the Thermostat Window Open Duration.</description>
 				<advanced>true</advanced>
 			</parameter>
+			<parameter name="maxValveSetting" type="integer" min="0" max="100" required="false"
+				groupName="device">
+				<label>Max Value Setting</label>
+				<description>Set the Thermostat Max Valve Setting.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="valveOffset" type="integer" min="0" max="100" required="false"
+				groupName="device">
+				<label>Value Offset</label>
+				<description>Set the Thermostat Valve Offset.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="boostValvePosition" type="integer" min="0" max="100" step="5" required="false"
+				groupName="device">
+				<label>Boost Value Position</label>
+				<description>Set the Boost Value Position.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="boostDuration" type="integer" required="false"
+				groupName="device">
+				<label>Boost Duration</label>
+				<description>Set the Boost Duration.</description>
+				<options>
+					<option value="5">5</option>
+					<option value="10">10</option>
+					<option value="15">15</option>
+					<option value="20">20</option>
+					<option value="25">25</option>
+					<option value="30">30</option>
+					<option value="60">60</option>
+				</options>
+				<advanced>true</advanced>
+			</parameter>
 			<parameter name="refreshPeriod" type="integer" min="0" max="3600" step="5" required="false"
 				groupName="device">
 				<label>Refresh Period</label>
@@ -326,6 +392,39 @@
 				groupName="device">
 				<label>Window Open Duration</label>
 				<description>Set the Thermostat Window Open Duration.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="maxValveSetting" type="integer" min="0" max="100" required="false"
+				groupName="device">
+				<label>Max Value Setting</label>
+				<description>Set the Thermostat Max Valve Setting.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="valveOffset" type="integer" min="0" max="100" required="false"
+				groupName="device">
+				<label>Value Offset</label>
+				<description>Set the Thermostat Valve Offset.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="boostValvePosition" type="integer" min="0" max="100" step="5" required="false"
+				groupName="device">
+				<label>Boost Value Position</label>
+				<description>Set the Boost Value Position.</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="boostDuration" type="integer" required="false"
+				groupName="device">
+				<label>Boost Duration</label>
+				<description>Set the Boost Duration.</description>
+				<options>
+					<option value="5">5</option>
+					<option value="10">10</option>
+					<option value="15">15</option>
+					<option value="20">20</option>
+					<option value="25">25</option>
+					<option value="30">30</option>
+					<option value="60">60</option>
+				</options>
 				<advanced>true</advanced>
 			</parameter>
 			<parameter name="refreshPeriod" type="integer" min="0" max="3600" step="5" required="false"

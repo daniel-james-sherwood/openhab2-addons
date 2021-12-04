@@ -26,7 +26,9 @@ import org.openhab.binding.cul.max.internal.actions.MaxDevicesActions;
 import org.openhab.binding.cul.max.internal.config.WeekProfileConfigHelper;
 import org.openhab.binding.cul.max.internal.message.sequencers.PairingInitialisationSequence;
 import org.openhab.binding.cul.max.internal.messages.*;
+import org.openhab.binding.cul.max.internal.messages.constants.MaxCulBoostDuration;
 import org.openhab.binding.cul.max.internal.messages.constants.MaxCulDevice;
+import org.openhab.binding.cul.max.internal.messages.constants.MaxCulWeekdays;
 import org.openhab.binding.cul.max.internal.messages.constants.PushButtonMode;
 import org.openhab.binding.cul.max.internal.messages.constants.ShutterContactState;
 import org.openhab.binding.cul.max.internal.messages.constants.ThermostatControlMode;
@@ -77,6 +79,12 @@ public class MaxDevicesHandler extends BaseThingHandler {
     private double minTemp = ConfigTemperaturesMsg.DEFAULT_MIN_TEMP;
     private double windowOpenTemperature = ConfigTemperaturesMsg.DEFAULT_WINDOW_OPEN_TEMP;
     private int windowOpenDuration = ConfigTemperaturesMsg.DEFAULT_WINDOW_OPEN_TIME;
+    private int maxValveSetting = ConfigValveMsg.DEFAULT_MAX_VALVE_SETTING;
+    private int valveOffset = ConfigValveMsg.DEFAULT_VALVE_OFFSET;
+    private int boostValvePosition = ConfigValveMsg.DEFAULT_BOOST_VALVE_POSITION;
+    private MaxCulBoostDuration boostDuration = ConfigValveMsg.DEFAULT_BOOST_DURATION;
+    private MaxCulWeekdays decalcificationDay = ConfigValveMsg.DEFAULT_DECALCIFICATION_DAY;
+    private int decalcificationHour = ConfigValveMsg.DEFAULT_DECALCIFICATION_HOUR;
     private int refreshPeriod = ConfigTemperaturesMsg.DEFAULT_REFRESH_PERIOD;
     private double measurementOffset = ConfigTemperaturesMsg.DEFAULT_OFFSET;
     private MaxCulWeekProfile weekProfile = ConfigWeekProfileMsg.DEFAULT_WEEK_PROFILE;
@@ -85,6 +93,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
 
     private ThermostatControlMode mode = ThermostatControlMode.UNKOWN;
     private double settemp = -1.0;
+    private int valve = -1;
 
     @Override
     public Collection<Class<? extends ThingHandlerService>> getServices() {
@@ -94,6 +103,9 @@ public class MaxDevicesHandler extends BaseThingHandler {
     @Override
     public void initialize() {
         disposed = false;
+        mode = ThermostatControlMode.UNKOWN;
+        settemp = -1.0;
+        firstRefresh = true;
         final String thingVersion = this.thing.getProperties().get(MaxCulBindingConstants.PROPERTY_THING_VERSION);
         if (!MaxCulBindingConstants.CURRENT_THING_VERSION.equals(thingVersion)) {
             final Map<String, String> newProperties = new HashMap<>(thing.getProperties());
@@ -197,10 +209,30 @@ public class MaxDevicesHandler extends BaseThingHandler {
             windowOpenDuration = windowOpenDurationCfg.intValue();
             logger.trace("Window open duration is set to {} for {}", windowOpenDuration, getDeviceSerial());
         }
+        final BigDecimal maxValveSettingCfg = (BigDecimal) config.get(PROPERTY_THERMO_MAX_VALVE_SETTING);
+        if (maxValveSettingCfg != null) {
+            maxValveSetting = maxValveSettingCfg.intValue();
+            logger.trace("Max valve setting is set to {} for {}", maxValveSetting, getDeviceSerial());
+        }
+        final BigDecimal valveOffsetCfg = (BigDecimal) config.get(PROPERTY_THERMO_VALVE_OFFSET);
+        if (valveOffsetCfg != null) {
+            valveOffset = valveOffsetCfg.intValue();
+            logger.trace("Valve offset is set to {} for {}", valveOffset, getDeviceSerial());
+        }
+        final BigDecimal boostValvePositionCfg = (BigDecimal) config.get(PROPERTY_THERMO_BOOST_VALVE_POSITION);
+        if (boostValvePositionCfg != null) {
+            boostValvePosition = boostValvePositionCfg.intValue();
+            logger.trace("Boost valve position is set to {} for {}", boostValvePosition, getDeviceSerial());
+        }
+        final BigDecimal boostDurationCfg = (BigDecimal) config.get(PROPERTY_THERMO_BOOST_DURATION);
+        if (boostDurationCfg != null) {
+            boostDuration = MaxCulBoostDuration.getBoostDurationFromDur(boostDurationCfg.intValue());
+            logger.trace("Boost duration is set to {} for {}", boostDuration, getDeviceSerial());
+        }
         final BigDecimal refreshPeriodCfg = (BigDecimal) config.get(PROPERTY_THERMO_REFRESH_PERIOD);
         if (refreshPeriodCfg != null) {
             refreshPeriod = refreshPeriodCfg.intValue();
-            logger.trace("Refresh period duration is set to {} for {}", refreshPeriod, getDeviceSerial());
+            logger.trace("Refresh period is set to {} for {}", refreshPeriod, getDeviceSerial());
         }
         final BigDecimal windowOpenTempCfg = (BigDecimal) config.get(PROPERTY_THERMO_WINDOW_OPEN_TEMP);
         if (windowOpenTempCfg != null) {
@@ -272,7 +304,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     /* schedule new timer */
                     pacingTimer = new Timer();
                     MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                            mode, settemp + thermostatRefeshAdjust, this, bridgeHandler);
+                            mode, 0.0, this, bridgeHandler);
                     pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
                 }
                 break;
@@ -306,6 +338,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
                 }
                 if (new_settemp != settemp) {
                     settemp = new_settemp;
+                    thermostatRefeshAdjust = 0.0;
                     /* clear out old pacing timer */
                     if (pacingTimer != null) {
                         pacingTimer.cancel();
@@ -346,13 +379,17 @@ public class MaxDevicesHandler extends BaseThingHandler {
         }
         if (msg instanceof ThermostatValveStateMsg && (HEATINGTHERMOSTAT_THING_TYPE.equals(getThing().getThingTypeUID())
                 || HEATINGTHERMOSTATPLUS_THING_TYPE.equals(getThing().getThingTypeUID()))) {
+            valve = ((ThermostatValveStateMsg) msg).getValvePos();
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_VALVE),
-                    new DecimalType(((ThermostatValveStateMsg) msg).getValvePos()));
+                    new DecimalType(valve));
         }
         if (msg instanceof DesiredTemperatureStateMsg) {
-            mode = ((DesiredTemperatureStateMsg) msg).getControlMode();
-            updateState(new ChannelUID(getThing().getUID(), CHANNEL_MODE),
-                    new StringType(mode.toString()));
+            if (!(msg instanceof AckMsg)) {
+                // mode is not correctly updated in ACK to SET_TEMPERATURE message
+                mode = ((DesiredTemperatureStateMsg) msg).getControlMode();
+                updateState(new ChannelUID(getThing().getUID(), CHANNEL_MODE),
+                        new StringType(mode.toString()));
+            }
             Double desiredTemperature = ((DesiredTemperatureStateMsg) msg).getDesiredTemperature();
             if (desiredTemperature != null) {
                 settemp = desiredTemperature - thermostatRefeshAdjust;
@@ -440,6 +477,30 @@ public class MaxDevicesHandler extends BaseThingHandler {
         return windowOpenDuration;
     }
 
+    public int getMaxValveSetting() {
+        return maxValveSetting;
+    }
+
+    public int getValveOffset() {
+        return valveOffset;
+    }
+
+    public int getBoostValvePosition() {
+        return boostValvePosition;
+    }
+
+    public MaxCulBoostDuration getBoostDuration() {
+        return boostDuration;
+    }
+
+    public MaxCulWeekdays getDecalcificationDay() {
+        return decalcificationDay;
+    }
+
+    public int getDecalcificationHour() {
+        return decalcificationHour;
+    }
+
     public int getRefreshPeriod() {
         return refreshPeriod;
     }
@@ -494,7 +555,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
     private boolean firstRefresh = true;
 
     private static final int INITIAL_REFRESH_PERIOD = 10000;
-    private static final int SECONDARY_REFRESH_PERIOD = 60000;
+    private static final int SECONDARY_REFRESH_PERIOD = 180000;
 
     private synchronized void startThermostatRefresh(int refreshTime)
     {
@@ -512,8 +573,6 @@ public class MaxDevicesHandler extends BaseThingHandler {
             thermostatRefreshTimer = new Timer();
             thermostatRefreshTimer.schedule(new ThermostatRefreshTask(this), refreshTime);
             logger.info("Starting thermostat refresh timer on {} for {}", rfAddress, refreshTime);
-        } else {
-            firstRefresh = true;
         }
     }
 
@@ -522,15 +581,19 @@ public class MaxDevicesHandler extends BaseThingHandler {
         if (disposed) {
             return;
         }
-        if (firstRefresh) {
+        if (mode != ThermostatControlMode.AUTO && mode != ThermostatControlMode.MANUAL && mode != ThermostatControlMode.UNKOWN) {
+            logger.info("Handling thermostat refresh on {}, incompatible mode {} ignored", rfAddress, mode);
+        } else if (firstRefresh) {
             logger.info("Handling initial thermostat refresh on {}, adjust {}, offset {}", rfAddress, thermostatRefeshAdjust, getMeasurementOffset() - thermostatRefeshAdjust);
             bridgeHandler.startPairingInitialisationSequence(null, rfAddress, MaxCulDevice.getDeviceTypeFromThingTypeUID(getThing().getThingTypeUID()));
             firstRefresh = false;
         } else if (mode != ThermostatControlMode.UNKOWN) {
-            if (thermostatRefeshAdjust == 0.0) {
-                thermostatRefeshAdjust = 0.5;
-            } else {
+            if (thermostatRefeshAdjust != 0.0) {
                 thermostatRefeshAdjust = 0.0;
+            } else if (settemp == getMaxTemp() || (settemp != getMinTemp() && valve == 0)) {
+                thermostatRefeshAdjust = -0.5;
+            } else {
+                thermostatRefeshAdjust = 0.5;
             }
             logger.info("Handling thermostat refresh on {}, adjust {}, settemp {}, offset {}", rfAddress, thermostatRefeshAdjust, settemp + thermostatRefeshAdjust, getMeasurementOffset() + thermostatRefeshAdjust);
             bridgeHandler.sendSetTemperature(this, mode, settemp + thermostatRefeshAdjust);

@@ -21,8 +21,10 @@ import org.openhab.binding.cul.CULCommunicationException;
 import org.openhab.binding.cul.CULListener;
 import org.openhab.binding.cul.max.internal.message.sequencers.MessageSequencer;
 import org.openhab.binding.cul.max.internal.messages.*;
+import org.openhab.binding.cul.max.internal.messages.constants.MaxCulBoostDuration;
 import org.openhab.binding.cul.max.internal.messages.constants.MaxCulDevice;
 import org.openhab.binding.cul.max.internal.messages.constants.MaxCulMsgType;
+import org.openhab.binding.cul.max.internal.messages.constants.MaxCulWeekdays;
 import org.openhab.binding.cul.max.internal.messages.constants.ThermostatControlMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -198,6 +200,7 @@ public class MaxCulMsgHandler implements CULListener {
         if (sendQueue.isEmpty()) {
             lastItemDstAddrStr = "";
             logger.trace("kickSendQueue(): Queue empty");
+            return;
         }
 
         sendItem = sendQueue.remove();
@@ -547,6 +550,26 @@ public class MaxCulMsgHandler implements CULListener {
                 this.srcAddr, devAddr, comfortTemp, ecoTemp, maxTemp, minTemp, offset, windowOpenTemp, windowOpenTime);
         cfgTempMsg.setMessageSequencer(msgSeq);
         sendMessage(cfgTempMsg);
+    }
+
+    /**
+     * Send valve configuration message
+     *
+     * @param devAddr Radio addr of device
+     * @param msgSeq Message sequencer to associate with this message
+     * @param boostDuration boost duration value
+     * @param boostValvePosition boostvalve position value
+     * @param decalcificationDay decalcification day value
+     * @param decalcificationHour decalsification hour value
+     * @param maxValveSetting max valve setting value
+     * @param valveOffset valve offset value
+     */
+    public void sendConfigValve(String devAddr, @Nullable MessageSequencer msgSeq, MaxCulBoostDuration boostDuration, 
+            int boostValvePosition, MaxCulWeekdays decalcificationDay, int decalcificationHour, int maxValveSetting, int valveOffset) {
+        ConfigValveMsg cfgValveMsg = new ConfigValveMsg(getMessageCount(), (byte) 0, (byte) 0, this.srcAddr,
+                devAddr, boostDuration, boostValvePosition, decalcificationDay, decalcificationHour, maxValveSetting, valveOffset);
+        cfgValveMsg.setMessageSequencer(msgSeq);
+        sendMessage(cfgValveMsg);
     }
 
     /**

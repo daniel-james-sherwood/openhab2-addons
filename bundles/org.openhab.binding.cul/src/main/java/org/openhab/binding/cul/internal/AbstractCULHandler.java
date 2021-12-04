@@ -338,6 +338,12 @@ public abstract class AbstractCULHandler<T extends CULConfig> implements CULHand
         /* this requests a report which provides credit10ms */
         log.debug("Requesting credit report");
         try {
+            CULMode mode = config.getMode();
+            List<String> initCommands = mode.getCommands();
+            for (String command : initCommands) {
+                bw.write(command + "\r\n");
+                bw.flush();
+            }    
             bw.write("X\r\n");
             bw.flush();
         } catch (IOException e) {

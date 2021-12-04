@@ -41,15 +41,16 @@ public class WeekProfileConfigHelper {
             if (controlPoints.length > 13 * 2) {
                 throw new BindingConfigParseException("Not more than 13 control points are allowed!");
             }
+            if (controlPoints.length % 2 == 0) {
+                throw new BindingConfigParseException("control points must be odd.");
+            }
             // Each day has 2 bytes * 13 controlpoints = 26 bytes = 52 hex characters
-            // we don't have to update the rest, because the active part is terminated by the time 0:00
-            for (int j = 0; j < 13 * 2; j += 2) {
+            // we don't have to update the rest, because the active part is terminated by the time 24:00
+            for (int j = 0; j < controlPoints.length; j += 2) {
                 MaxCulWeekProfileControlPoint controlPoint = new MaxCulWeekProfileControlPoint();
                 if (j + 1 == controlPoints.length) {
-                    controlPoint.setHour(0);
+                    controlPoint.setHour(24);
                     controlPoint.setMin(0);
-                    controlPoint.setTemperature(0.0f);
-                    break;
                 } else {
                     String timeRegex = "^(\\d{1,2})-(\\d{1,2})$";
                     Pattern pattern = Pattern.compile(timeRegex);
@@ -58,12 +59,11 @@ public class WeekProfileConfigHelper {
                         controlPoint.setHour(Integer.parseInt(matcher.group(1)));
                         controlPoint.setMin(Integer.parseInt(matcher.group(2)));
                     }
+                    if (controlPoint.getHour() > 23 || controlPoint.getMin() > 59)
+                        throw new IllegalArgumentException("Invalid time");
                 }
-                if (controlPoint.getHour() > 23 || controlPoint.getMin() > 59)
-                    throw new IllegalArgumentException("Invalid time");
                 controlPoint.setTemperature(Float.parseFloat(controlPoints[j]));
                 weekProfilePart.addControlPoint(controlPoint);
-
             }
             result.addWeekProfilePart(weekProfilePart);
         }
