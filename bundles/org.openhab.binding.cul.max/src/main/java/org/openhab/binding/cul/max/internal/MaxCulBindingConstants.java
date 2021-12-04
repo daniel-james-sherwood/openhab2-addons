@@ -77,6 +77,10 @@ public class MaxCulBindingConstants {
     public static final String PROPERTY_THERMO_OFFSET_TEMP = "offsetTemp";
     public static final String PROPERTY_THERMO_WINDOW_OPEN_TEMP = "windowOpenTemp";
     public static final String PROPERTY_THERMO_WINDOW_OPEN_DURATION = "windowOpenDuration";
+    public static final String PROPERTY_THERMO_MAX_VALVE_SETTING = "maxValveSetting";
+    public static final String PROPERTY_THERMO_VALVE_OFFSET = "valveOffset";
+    public static final String PROPERTY_THERMO_BOOST_VALVE_POSITION = "boostValvePosition";
+    public static final String PROPERTY_THERMO_BOOST_DURATION = "boostDuration";
     public static final String PROPERTY_THERMO_REFRESH_PERIOD = "refreshPeriod";
     public static final String PROPERTY_THERMO_WEEK_PROFILE = "weekProfile";
     public static final String PROPERTY_ASSOSIATE = "associate";

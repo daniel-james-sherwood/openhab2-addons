@@ -64,8 +64,8 @@ public class ConfigValveMsg extends BaseMsg {
 
     private byte[] buildPayload() {
         byte[] payload = new byte[CONFIG_VALVE_PAYLOAD_LEN];
-        payload[1] = (byte) (boostDuration.getDurationIndex() << 5 | (int) (boostValveposition / 5f));
-        payload[0] = (byte) (decalcificationDay.getDayIndexInt() << 5 | decalcificationHour);
+        payload[0] = (byte) (boostDuration.getDurationIndex() << 5 | (int) (boostValveposition / 5f));
+        payload[1] = (byte) (decalcificationDay.getDayIndexInt() << 5 | decalcificationHour);
         payload[2] = (byte) (maxValveSetting * 255 / 100f);
         payload[3] = (byte) (valveOffset * 255 / 100f);
         return payload;

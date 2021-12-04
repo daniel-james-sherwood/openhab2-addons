@@ -74,14 +74,14 @@ public class SetTemperatureMsg extends BaseMsg implements DesiredTemperatureStat
             double temperature, ThermostatControlMode mode) {
         super(msgCount, msgFlag, MaxCulMsgType.SET_TEMPERATURE, groupId, srcAddr, dstAddr);
 
-        desiredTemperature = temperature;
-        ctrlMode = mode;
-
         if (temperature > TEMPERATURE_MAX) {
             temperature = TEMPERATURE_MAX;
-        } else if (temperature < TEMPERATURE_MIN) {
+        } else if (temperature != 0.0 && temperature < TEMPERATURE_MIN) {
             temperature = TEMPERATURE_MIN;
         }
+
+        desiredTemperature = temperature;
+        ctrlMode = mode;
 
         byte[] payload = new byte[SET_TEMPERATURE_PAYLOAD_LEN];
         payload[0] = (byte) (temperature * 2.0);
