@@ -59,7 +59,7 @@ public class AckMsg extends BaseMsg implements BatteryStateMsg, RfErrorStateMsg,
                 || this.payload.length == ACK_MSG_PAYLOAD_TIME_LEN) {
             isNack = (this.payload[0] == 0x81); // !(this.payload[0] == 0x01);
             /* extract control mode */
-            ctrlMode = ThermostatControlMode.values()[(this.payload[0] & 0x3)];
+            ctrlMode = ThermostatControlMode.values()[(this.payload[1] & 0x3)];
             /* extract DST status */
             dstActive = extractBitFromByte(this.payload[1], 3);
             /* extract lanGateway */

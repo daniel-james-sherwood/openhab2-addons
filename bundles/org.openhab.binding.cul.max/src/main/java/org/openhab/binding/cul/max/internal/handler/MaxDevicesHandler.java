@@ -304,7 +304,7 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     /* schedule new timer */
                     pacingTimer = new Timer();
                     MaxCulPacedThermostatTransmitTask pacedThermostatTransmitTask = new MaxCulPacedThermostatTransmitTask(
-                            mode, 0.0, this, bridgeHandler);
+                            mode, mode == ThermostatControlMode.AUTO ? 0.0 : settemp + thermostatRefeshAdjust, this, bridgeHandler);
                     pacingTimer.schedule(pacedThermostatTransmitTask, PACED_TRANSMIT_TIME);
                 }
                 break;
@@ -384,12 +384,9 @@ public class MaxDevicesHandler extends BaseThingHandler {
                     new DecimalType(valve));
         }
         if (msg instanceof DesiredTemperatureStateMsg) {
-            if (!(msg instanceof AckMsg)) {
-                // mode is not correctly updated in ACK to SET_TEMPERATURE message
-                mode = ((DesiredTemperatureStateMsg) msg).getControlMode();
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_MODE),
-                        new StringType(mode.toString()));
-            }
+            mode = ((DesiredTemperatureStateMsg) msg).getControlMode();
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_MODE),
+                    new StringType(mode.toString()));
             Double desiredTemperature = ((DesiredTemperatureStateMsg) msg).getDesiredTemperature();
             if (desiredTemperature != null) {
                 settemp = desiredTemperature - thermostatRefeshAdjust;
