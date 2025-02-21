@@ -1,0 +1,2 @@
+mvn install -DskipChecks -DskipTests -Dmaven.test.skip=true -Dfeatures.verify.skip=true -Dspotless.check.skip=true -pl :org.openhab.binding.cul -pl :org.openhab.binding.cul.max
+cp ./bundles/org.openhab.binding.cul*/target/org.openhab.binding.cul*-SNAPSHOT.jar .
